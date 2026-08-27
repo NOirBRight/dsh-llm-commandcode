@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-commandcode",
   "description": "Command Code Provider API LLM plugin for DeepSeek Harness",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publishConfig": {
     "access": "public"
   },

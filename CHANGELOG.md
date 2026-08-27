@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Add Settings card and model-catalog screenshots
+- Align the README with the other provider plugins
+
 ## 0.1.0
 
 First release: Command Code Provider API chat for DeepSeek Harness.
