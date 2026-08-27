@@ -1,0 +1,137 @@
+/** Browser face for the Command Code settings and quota card. */
+
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import {
+  COMMANDCODE_DISCOVER_ENDPOINT,
+  COMMANDCODE_RPC_CHANNEL,
+  COMMANDCODE_SAVE_ENDPOINT,
+  COMMANDCODE_SETTINGS_NAMESPACE,
+  COMMANDCODE_USAGE_ENDPOINT,
+  DEFAULT_API_KEY_ENV,
+  decodeCommandCodeDiscoveryResult,
+  decodeCommandCodeSaveResult,
+  decodeCommandCodeSettings,
+  decodeCommandCodeUsageReply,
+} from '../client-contract.ts'
+import type {
+  CommandCodeDiscoveryRequest,
+  CommandCodeSettingsView,
+} from '../client-contract.ts'
+import type { CommandCodeUsageRead } from '../types.ts'
+import { ensureProviderSection } from './provider-section.ts'
+import { CommandCodeModelPicker, CommandCodeModelPickerController } from './CommandCodeModelPicker.tsx'
+import type { CommandCodeModelPickerFace } from './CommandCodeModelPicker.tsx'
+import type { CommandCodeSettingsKey } from './locales.ts'
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    'settings.commandcode': CommandCodeSettingsKey
+  }
+}
+
+import { CommandCodeSettingsCard } from './CommandCodeSettingsCard.tsx'
+import type { CommandCodeCardFace } from './CommandCodeSettingsCard.tsx'
+import { en, zh } from './locales.ts'
+export const name = 'dsh-llm-commandcode-client'
+export const inject = ['slots', 'locale', 'connection', 'settingsScope']
+
+/** Register the Command Code card inside the shared LLM Providers section. */
+export function apply(ctx: ClientContext): void {
+  const localeNamespace = 'settings.commandcode'
+  ctx.effect(() => ctx.locale.register(localeNamespace, { en, zh }), 'llm-commandcode: locale')
+  const t = ctx.locale.bind(localeNamespace) as CommandCodeCardFace['t']
+  const picker = new CommandCodeModelPickerController()
+  const scope = ctx.settingsScope.bind<CommandCodeSettingsView>({
+    namespace: COMMANDCODE_SETTINGS_NAMESPACE,
+    decode: decodeCommandCodeSettings,
+  })
+  const { api, rpc } = ctx.get('connection') as unknown as ConnectionHandle
+
+  const describeCredential: CommandCodeCardFace['describeCredential'] = async () => {
+    const ref = scope.getSnapshot().value?.apiKeyEnv ?? DEFAULT_API_KEY_ENV
+    const response = await api.credentials.describe({ refs: [ref] })
+    if (!response.result.ok) throw new Error(response.result.error.message)
+    const value = response.result.value.credentials[ref]
+    return { configured: value?.configured ?? false, writable: value?.writable ?? true }
+  }
+
+  const storeApiKey: CommandCodeCardFace['storeApiKey'] = async (value) => {
+    const ref = scope.getSnapshot().value?.apiKeyEnv ?? DEFAULT_API_KEY_ENV
+    const response = await api.credentials.set({ ref, value })
+    if (!response.result.ok) throw new Error(response.result.error.message)
+  }
+
+  const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async (settings, apiKey) => {
+    const snapshot = scope.getSnapshot()
+    if (snapshot.revision === undefined) throw new Error(t('saveFailed'))
+    const { apiKeyEnv: _apiKeyEnv, ...withoutKey } = settings
+    const result = await rpc.call(COMMANDCODE_RPC_CHANNEL, COMMANDCODE_SAVE_ENDPOINT, {
+      settings: withoutKey,
+      expectedRevision: snapshot.revision,
+    })
+    if (!result.ok) throw new Error(result.error.message)
+    const saved = decodeCommandCodeSaveResult(result.value)
+    if (saved === undefined) throw new Error(t('saveFailed'))
+    if (apiKey !== undefined && apiKey.trim().length > 0) await storeApiKey(apiKey.trim())
+    return saved
+  }
+
+  const discover: CommandCodeCardFace['discoverModels'] = async (request: CommandCodeDiscoveryRequest) => {
+    const result = await rpc.call(COMMANDCODE_RPC_CHANNEL, COMMANDCODE_DISCOVER_ENDPOINT, request)
+    if (!result.ok) throw new Error(result.error.message)
+    const decoded = decodeCommandCodeDiscoveryResult(result.value)
+    if (decoded === undefined) throw new Error(t('discoveryEmpty'))
+    return decoded
+  }
+
+  const fetchUsage: CommandCodeCardFace['fetchUsage'] = async () => {
+    const result = await rpc.call(COMMANDCODE_RPC_CHANNEL, COMMANDCODE_USAGE_ENDPOINT, {})
+    if (!result.ok) throw new Error(result.error.message)
+    const decoded = decodeCommandCodeUsageReply(result.value)
+    if (decoded === undefined) throw new Error(t('quotaFailed'))
+    if (decoded.status === 'unsupported') return { status: 'unsupported' }
+    return { status: 'ok', usage: decoded.usage } as CommandCodeUsageRead
+  }
+
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'commandcode-model-picker',
+    order: 100,
+    inject: (): CommandCodeModelPickerFace => ({
+      t,
+      hooks: { commandCodeModelPicker: picker },
+      closePicker: picker.close,
+      togglePickerModel: picker.toggle,
+      adoptPickerModels: picker.adopt,
+    }),
+  }, CommandCodeModelPicker))
+
+  ensureProviderSection(ctx)
+  ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
+    name: 'settings.provider.item',
+    key: COMMANDCODE_SETTINGS_NAMESPACE,
+    locale: localeNamespace,
+    inject: (): CommandCodeCardFace => ({
+      t,
+      hooks: { commandCodeSettings: scope },
+      describeCredential,
+      storeApiKey,
+      saveConfiguration,
+      discoverModels: discover,
+      fetchUsage,
+      beginModelPicker: (initiallyPicked, onAdopt) => { picker.begin(onAdopt, initiallyPicked) },
+      completeModelPicker: candidates => { picker.complete(candidates) },
+      failModelPicker: message => { picker.fail(message) },
+      closeModelPicker: picker.close,
+    }),
+  }, CommandCodeSettingsCard))
+}
+
+export type { CommandCodeSettingsKey }
+export type { CommandCodeCardFace }

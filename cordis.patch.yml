@@ -1,0 +1,8 @@
+# Command Code Provider bundle layer.
+- insert:
+    - id: llm-commandcode
+      name: 'dsh-llm-commandcode'
+      config:
+        retryPolicy:
+          mode: normal
+          maxRetries: 3
