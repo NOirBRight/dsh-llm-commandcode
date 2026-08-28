@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Unify model catalog to opencode baseline (Context first row, Vision/Reasoning/Default thinking second row, 32/36px), fix thinking persistence
+
 ## 0.1.2
 
 - Model catalog visual parity with Codex / OpenCode: expandable rows now strictly match the official Codex / opencode-go layout — Context window on top, Vision / Reasoning / Default thinking on the bottom row, Choose from official catalog trigger, Custom catalog subtitle, shared SortableList and ModelsSection tokens, 32px inputs with chevron.
