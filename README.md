@@ -26,6 +26,27 @@ dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.1
 dsh plugin --profile web add github:NOirBRight/dsh-llm-ollama#v0.6.8
 ~~~
 
+## Remote management
+
+By default the plugin's settings RPC is loopback-only. When you open DSH from a non-loopback host (e.g. https://dsh.noirbright.top or http://192.168.50.75:3080), the card shows “A remote browser cannot edit plugin settings”.
+
+To allow editing from a trusted host:
+
+1. Add to your profile patch (`~/.dsh/profiles/web/cordis.patch.yml` for production, `~/.dsh-lab/profiles/web/cordis.patch.yml` for lab):
+   ```yaml
+   - id: llm-commandcode
+     config:
+       remoteManagement: true
+   ```
+2. Restart DSH with the host allowlisted:
+   ```sh
+   dsh web --trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top
+   ```
+   The current production launch already uses `--trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top`; add any additional host you use.
+3. Refresh the browser. Settings saved on the host keep working for remote sessions.
+
+Without `remoteManagement: true`, use `ssh -L 3080:127.0.0.1:3080 user@host` and open `http://127.0.0.1:3080`.
+
 ## Web configuration
 
 Open Settings → LLM Providers → Command Code. If this is the first provider plugin, it creates that left-nav section; otherwise it joins the existing one. The card stores the API key through the DSH credentials service under `COMMANDCODE_API_KEY` (set `apiKeyEnv` to `CMD_API_KEY` if needed). The Host never returns the stored literal.

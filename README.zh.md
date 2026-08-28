@@ -26,6 +26,27 @@ dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.1
 dsh plugin --profile web add github:NOirBRight/dsh-llm-ollama#v0.6.8
 ~~~
 
+## 远程管理
+
+默认插件设置 RPC 仅允许 loopback。通过非回环地址打开 DSH（如 https://dsh.noirbright.top 或 http://192.168.50.75:3080）时会显示“远程浏览器无法编辑插件设置”。
+
+如需在可信主机上远程编辑：
+
+1. 在 profile patch（生产 `~/.dsh/profiles/web/cordis.patch.yml`，lab `~/.dsh-lab/profiles/web/cordis.patch.yml`）中加入：
+   ```yaml
+   - id: llm-commandcode
+     config:
+       remoteManagement: true
+   ```
+2. 以可信主机重启 DSH：
+   ```sh
+   dsh web --trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top
+   ```
+   当前生产已使用 `--trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top`，新增主机需一并加入。
+3. 刷新浏览器。主机上保存的设置对远程会话依然有效。
+
+未启用 `remoteManagement: true` 时，请使用 `ssh -L 3080:127.0.0.1:3080 user@host` 后打开 `http://127.0.0.1:3080`。
+
 ## Web 配置
 
 打开 Settings → LLM Providers → Command Code。单独安装时会创建左侧 LLM Providers；已有其他 provider 时加入同一 section。API key 通过 DSH credentials 存到 `COMMANDCODE_API_KEY`（需要时可把 `apiKeyEnv` 设为 `CMD_API_KEY`）。Host 不会把已存明文返回给浏览器。
