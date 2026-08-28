@@ -10,6 +10,9 @@ import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deeps
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
+  COMMANDCODE_SETTINGS_READ_ENDPOINT,
+  COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
+  COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
   COMMANDCODE_DISCOVER_ENDPOINT,
   COMMANDCODE_PROVIDER,
   COMMANDCODE_RPC_CHANNEL,
@@ -22,6 +25,7 @@ import {
   DEFAULT_REQUEST_TIMEOUT_MS,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   PUBLIC_PROVIDER_BASE_URL,
+  decodeCommandCodeCredentialSetRequest,
   decodeCommandCodeDiscoveryRequest,
   decodeCommandCodeSaveRequest,
   decodeCommandCodeSettings,
@@ -37,6 +41,9 @@ import { isPositiveInteger } from './numbers.ts'
 
 export {
   COMMANDCODE_PROVIDER,
+  COMMANDCODE_SETTINGS_READ_ENDPOINT,
+  COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
+  COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
   COMMANDCODE_RPC_CHANNEL,
   COMMANDCODE_SETTINGS_NAMESPACE,
   DEFAULT_API_KEY_ENV,
@@ -60,12 +67,14 @@ export type {
   CommandCodeUsageWindow,
 } from './types.ts'
 export {
+  decodeCommandCodeCredentialSetRequest,
   decodeCommandCodeDiscoveryRequest,
   decodeCommandCodeDiscoveryResult,
   decodeCommandCodeModel,
   decodeCommandCodeSaveRequest,
   decodeCommandCodeSaveResult,
   decodeCommandCodeSettings,
+  decodeCommandCodeSettingsReadResult,
   decodeCommandCodeUsageReply,
   decodeCommandCodeUsageRequest,
   decodeCommandCodeUsageView,
@@ -110,6 +119,8 @@ export interface Config {
   zeroDataRetention?: boolean
   usageEnabled?: boolean
   retryPolicy?: RetryPolicyConfig
+  /** Expose provider management to configured trusted hosts; disabled keeps loopback-only RPC. */
+  remoteManagement?: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -122,6 +133,7 @@ export const Config: z<Config> = z.object({
   zeroDataRetention: z.boolean().default(false),
   usageEnabled: z.boolean().default(true),
   retryPolicy: RetryPolicySchema,
+  remoteManagement: z.boolean().default(false),
 })
 
 function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): CommandCodeModelConfig[] {
@@ -205,6 +217,12 @@ export function apply(ctx: Context, config: Config): void {
     return credentials === undefined ? undefined : (await credentials.resolve(ref))?.value
   }
   const storedApiKey = (): Promise<string | undefined> => credentialValue(options().apiKeyEnv)
+  const credentialStatus = async (): Promise<{ configured: boolean, writable: boolean }> => {
+    const credentials = ctx.get('credentials')
+    if (credentials === undefined) return { configured: false, writable: false }
+    const info = await credentials.describe(options().apiKeyEnv)
+    return { configured: info.configured, writable: info.writable }
+  }
   const resolveApiKey = async (connection: CommandCodeConnectionOptions): Promise<string> => {
     const raw = await credentialValue(connection.apiKeyEnv)
     if (raw !== undefined && raw.length > 0) return assertUsableApiKey(raw, name, connection.apiKeyEnv)
@@ -232,6 +250,27 @@ export function apply(ctx: Context, config: Config): void {
     connectionCtx.connection.rpc.handle(
       COMMANDCODE_RPC_CHANNEL,
       async (endpoint, payload, signal) => {
+        if (endpoint === COMMANDCODE_SETTINGS_READ_ENDPOINT) {
+          const descriptor = ctx.get('settings')?.describe().find(item => item.ns === NS)
+          const settings = decodeCommandCodeSettings(descriptor?.value)
+          if (descriptor === undefined || settings === undefined) return failure('Command Code settings are unavailable')
+          return { ok: true as const, value: { settings, revision: descriptor.revision, credential: await credentialStatus() } }
+        }
+        if (endpoint === COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT) {
+          return { ok: true as const, value: await credentialStatus() }
+        }
+        if (endpoint === COMMANDCODE_CREDENTIAL_SET_ENDPOINT) {
+          const request = decodeCommandCodeCredentialSetRequest(payload)
+          if (request === undefined) return failure('invalid Command Code credential request')
+          const credentials = ctx.get('credentials')
+          if (credentials === undefined) return failure('Command Code credentials are unavailable')
+          try {
+            await credentials.set(options().apiKeyEnv, request.apiKey)
+          } catch {
+            return failure('Command Code credential write failed')
+          }
+          return { ok: true as const, value: await credentialStatus() }
+        }
         if (endpoint === COMMANDCODE_DISCOVER_ENDPOINT) {
           const request = decodeCommandCodeDiscoveryRequest(payload)
           if (request === undefined) return failure('invalid Command Code discovery request')
@@ -279,7 +318,7 @@ export function apply(ctx: Context, config: Config): void {
         }
         return failure('unknown Command Code endpoint: ' + endpoint)
       },
-      { authority: 'loopback' },
+      { authority: config.remoteManagement === true ? 'trusted-host' : 'loopback' },
     )
   })
 

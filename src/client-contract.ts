@@ -25,8 +25,11 @@ export const DEFAULT_MAX_TOKENS = 32_768
 export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
 export const COMMANDCODE_RPC_CHANNEL = '/commandcode'
+export const COMMANDCODE_SETTINGS_READ_ENDPOINT = 'settings/read'
 export const COMMANDCODE_DISCOVER_ENDPOINT = 'models/discover'
 export const COMMANDCODE_SAVE_ENDPOINT = 'settings/save'
+export const COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT = 'credentials/status'
+export const COMMANDCODE_CREDENTIAL_SET_ENDPOINT = 'credentials/set'
 export const COMMANDCODE_USAGE_ENDPOINT = 'usage/read'
 
 /** Settings section mirrored to the browser without a secret. */
@@ -61,6 +64,12 @@ export interface CommandCodeSaveResult {
   revision: number
 }
 
+export interface CommandCodeSettingsReadResult extends CommandCodeSaveResult {
+  credential: { configured: boolean; writable: boolean }
+}
+
+export interface CommandCodeCredentialSetRequest { apiKey: string }
+
 export interface CommandCodeUsageRequest {
   /** Reserved for a future server-owned usage query option; no endpoint is client-controlled. */
 }
@@ -74,13 +83,18 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const TOKEN_FIELD = /^(?:accessToken|refreshToken|access_token|refresh_token|id_token|idToken|token|apiKey|api_key|value)$/iu
+function hasTokenFields(value: Record<string, unknown>): boolean {
+  return Object.keys(value).some(key => TOKEN_FIELD.test(key))
+}
+
 function optionalPositiveInteger(value: unknown): value is number | undefined {
   return value === undefined || isPositiveInteger(value)
 }
 
 /** Decode one model while preserving only known JSON fields. */
 export function decodeCommandCodeModel(value: unknown): CommandCodeModelConfig | undefined {
-  if (!record(value) || typeof value.id !== 'string' || value.id.length === 0) return undefined
+  if (!record(value) || hasTokenFields(value) || typeof value.id !== 'string' || value.id.length === 0) return undefined
   if (value.name !== undefined && typeof value.name !== 'string') return undefined
   if (value.description !== undefined && typeof value.description !== 'string') return undefined
   if (!optionalPositiveInteger(value.contextWindow)) return undefined
@@ -112,7 +126,7 @@ export function decodeCommandCodeModel(value: unknown): CommandCodeModelConfig |
 }
 
 export function decodeCommandCodeSettings(value: unknown): CommandCodeSettingsView | undefined {
-  if (!record(value)) return undefined
+  if (!record(value) || hasTokenFields(value)) return undefined
   const modelsValue = value.models
   if (typeof value.apiKeyEnv !== 'string' || value.apiKeyEnv.length === 0) return undefined
   if (!Array.isArray(modelsValue)) return undefined
@@ -145,7 +159,7 @@ export function decodeCommandCodeDiscoveryRequest(value: unknown): CommandCodeDi
 }
 
 export function decodeCommandCodeDiscoveryResult(value: unknown): CommandCodeDiscoveryResult | undefined {
-  if (!record(value) || !Array.isArray(value.models) || !Array.isArray(value.warnings)) return undefined
+  if (!record(value) || hasTokenFields(value) || !Array.isArray(value.models) || !Array.isArray(value.warnings)) return undefined
   const models: CommandCodeModelConfig[] = []
   for (const item of value.models) {
     const model = decodeCommandCodeModel(item)
@@ -157,7 +171,7 @@ export function decodeCommandCodeDiscoveryResult(value: unknown): CommandCodeDis
 }
 
 export function decodeCommandCodeSaveRequest(value: unknown): CommandCodeSaveRequest | undefined {
-  if (!record(value)) return undefined
+  if (!record(value) || hasTokenFields(value)) return undefined
   const expectedRevision = value.expectedRevision
   if (typeof expectedRevision !== 'number' || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) return undefined
   const settings = value.settings
@@ -169,7 +183,7 @@ export function decodeCommandCodeSaveRequest(value: unknown): CommandCodeSaveReq
 }
 
 export function decodeCommandCodeSaveResult(value: unknown): CommandCodeSaveResult | undefined {
-  if (!record(value)) return undefined
+  if (!record(value) || hasTokenFields(value)) return undefined
   const revision = value.revision
   if (!Number.isSafeInteger(revision) || (revision as number) < 0) return undefined
   const settings = decodeCommandCodeSettings(value.settings)
@@ -193,8 +207,20 @@ function positiveOrZero(value: unknown): value is number {
 }
 
 /** Decode the secret-free usage snapshot returned by the Host. */
+
+export function decodeCommandCodeSettingsReadResult(value: unknown): CommandCodeSettingsReadResult | undefined {
+  if (!record(value) || hasTokenFields(value) || !record(value.credential)) return undefined
+  const base = decodeCommandCodeSaveResult(value)
+  if (base === undefined || typeof value.credential.configured !== 'boolean' || typeof value.credential.writable !== 'boolean') return undefined
+  return { ...base, credential: { configured: value.credential.configured, writable: value.credential.writable } }
+}
+
+export function decodeCommandCodeCredentialSetRequest(value: unknown): CommandCodeCredentialSetRequest | undefined {
+  if (!record(value) || Object.keys(value).some(key => key !== 'apiKey') || typeof value.apiKey !== 'string' || value.apiKey.trim().length === 0) return undefined
+  return { apiKey: value.apiKey }
+}
 export function decodeCommandCodeUsageView(value: unknown): CommandCodeUsageView | undefined {
-  if (!record(value) || typeof value.fetchedAt !== 'string' || !Array.isArray(value.failures)) return undefined
+  if (!record(value) || hasTokenFields(value) || typeof value.fetchedAt !== 'string' || !Array.isArray(value.failures)) return undefined
   if (value.failures.some(item => typeof item !== 'string')) return undefined
   const usage: CommandCodeUsageView = { fetchedAt: value.fetchedAt, failures: [...value.failures] }
   if (value.account !== undefined) {

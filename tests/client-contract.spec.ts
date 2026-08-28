@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  decodeCommandCodeCredentialSetRequest,
   decodeCommandCodeDiscoveryRequest,
   decodeCommandCodeSettings,
+  decodeCommandCodeSettingsReadResult,
   decodeCommandCodeUsageReply,
 } from '../src/client-contract.ts'
 
@@ -21,6 +23,14 @@ describe('Command Code browser contracts', () => {
     expect(decodeCommandCodeSettings({ ...base, models: [{ id: 'gpt', contextWindow: 0 }] })).toBeUndefined()
     expect(decodeCommandCodeSettings({ ...base, models: [{ id: 'gpt-5.6-luna', contextWindow: 1_050_000, reasoningEfforts: ['low'] }] })).toBeUndefined()
     expect(decodeCommandCodeSettings({ ...base, providerBaseURL: 'https://evil.example/provider/v1' })).not.toHaveProperty('providerBaseURL')
+  })
+
+  it('decodes management snapshots without secrets and accepts only one-way key writes', () => {
+    const settings = { apiKeyEnv: 'COMMANDCODE_API_KEY', models: [], defaultContextWindow: 1, defaultMaxTokens: 1, requestTimeoutMs: 1, streamIdleTimeoutMs: 1, zeroDataRetention: false, usageEnabled: true }
+    expect(decodeCommandCodeSettingsReadResult({ settings, revision: 3, credential: { configured: true, writable: true } })).toMatchObject({ revision: 3, credential: { configured: true } })
+    expect(decodeCommandCodeSettingsReadResult({ settings: { ...settings, apiKey: 'secret' }, revision: 3, credential: { configured: true, writable: true } })).toBeUndefined()
+    expect(decodeCommandCodeCredentialSetRequest({ apiKey: 'secret' })).toEqual({ apiKey: 'secret' })
+    expect(decodeCommandCodeCredentialSetRequest({ apiKey: 'secret', value: 'secret' })).toBeUndefined()
   })
 
   it('allows no browser-controlled discovery endpoint', () => {

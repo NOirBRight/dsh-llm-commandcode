@@ -63,8 +63,9 @@ describe('CommandCodeSettingsCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Model catalog' }))
     fireEvent.click(screen.getByRole('button', { name: /Model details/ }))
     expect(screen.getByDisplayValue('1050000')).toBeTruthy()
-    expect(screen.getByText('Low · Medium · High · Extra high · Max')).toBeTruthy()
-    expect((screen.getByRole('combobox', { name: 'Default effort' }) as HTMLSelectElement).value).toBe('max')
+    // hint removed to match Codex strict layout - efforts are now only in the dropdown
+    expect(screen.queryByText('Low · Medium · High · Extra high · Max')).toBeNull()
+    expect((screen.getByRole('combobox', { name: 'Default thinking' }) as HTMLSelectElement).value).toBe('max')
     expect(screen.queryByText('Image input')).toBeNull()
     expect(screen.queryByText('Protocol')).toBeNull()
     expect((screen.getByRole('textbox', { name: 'Provider API URL' }) as HTMLInputElement).disabled).toBe(true)
@@ -85,11 +86,13 @@ describe('CommandCodeSettingsCard', () => {
 
   it('marks a newly entered key dirty so Save persists it', async () => {
     const saveConfiguration = vi.fn(async () => ({ settings, revision: 2 }))
-    render(<CommandCodeSettingsCard {...props({ saveConfiguration })} />)
+    const storeApiKey = vi.fn(async () => {})
+    render(<CommandCodeSettingsCard {...props({ saveConfiguration, storeApiKey })} />)
     fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
     fireEvent.change(screen.getByPlaceholderText('Enter Command Code API key'), { target: { value: 'new-secret' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(saveConfiguration).toHaveBeenCalledWith({ ...settings, models: [{ ...settings.models[0]!, defaultEffort: 'max' }] }, 'new-secret'))
+    await waitFor(() => expect(storeApiKey).toHaveBeenCalledWith('new-secret'))
+    expect(saveConfiguration).toHaveBeenCalledWith({ ...settings, models: [{ ...settings.models[0]!, defaultEffort: 'max' }] })
   })
 
   it('keeps public discovery credential-free and endpoint-free', async () => {
@@ -98,7 +101,7 @@ describe('CommandCodeSettingsCard', () => {
     render(<CommandCodeSettingsCard {...props({ storeApiKey, discoverModels }, { ...settings, usageEnabled: false })} />)
     fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
     fireEvent.change(screen.getByPlaceholderText('Enter Command Code API key'), { target: { value: 'new-secret' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Fetch models' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from official catalog' }))
     await waitFor(() => expect(discoverModels).toHaveBeenCalled())
     expect(storeApiKey).not.toHaveBeenCalled()
     expect(discoverModels.mock.calls[0]?.[0]).toEqual({})

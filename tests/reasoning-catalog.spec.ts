@@ -21,8 +21,10 @@ describe('official Command Code effort catalog', () => {
     expect(defaultEffortForCommandCodeModel({ id: 'gpt-5.6-luna' })).toBe('max')
     expect(defaultEffortForCommandCodeModel({ id: 'gpt-5.5' })).toBe('xhigh')
     expect(defaultEffortForCommandCodeModel({ id: 'gpt-5.4-mini' })).toBe('high')
-    expect(defaultEffortForCommandCodeModel({ id: 'meta/muse-spark-1.2' })).toBe('high')
-    expect(defaultEffortForCommandCodeModel({ id: 'meta/muse-spark-1.2-contributor' })).toBe('high')
+    expect(defaultEffortForCommandCodeModel({ id: 'meta/muse-spark-1.2' })).toBe('xhigh')
+    expect(defaultEffortForCommandCodeModel({ id: 'meta/muse-spark-1.2-contributor' })).toBe('xhigh')
+    expect(effortsForCommandCodeModel({ id: 'meta/muse-spark-1.2' })).toEqual(['low', 'medium', 'high', 'xhigh'])
+    expect(effortsForCommandCodeModel({ id: 'meta/muse-spark-1.1' })).toEqual(['low', 'medium', 'high', 'xhigh'])
   })
 
   it('ignores arbitrary effort lists while preserving valid saved defaults', () => {

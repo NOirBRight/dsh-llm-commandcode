@@ -4,14 +4,14 @@ import z from '@deepseek-ai/schemastery';
 import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm';
 import type { CommandCodeSettingsView } from './client-contract.ts';
 import type { CommandCodeConnectionOptions, CommandCodeModelConfig } from './types.ts';
-export { COMMANDCODE_PROVIDER, COMMANDCODE_RPC_CHANNEL, COMMANDCODE_SETTINGS_NAMESPACE, DEFAULT_API_KEY_ENV, DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, PUBLIC_PROVIDER_BASE_URL, } from './client-contract.ts';
+export { COMMANDCODE_PROVIDER, COMMANDCODE_SETTINGS_READ_ENDPOINT, COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT, COMMANDCODE_CREDENTIAL_SET_ENDPOINT, COMMANDCODE_RPC_CHANNEL, COMMANDCODE_SETTINGS_NAMESPACE, DEFAULT_API_KEY_ENV, DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, PUBLIC_PROVIDER_BASE_URL, } from './client-contract.ts';
 export { CommandCodeAdapter } from './adapter.ts';
 export type { CommandCodeAdapterOptions } from './types.ts';
 export type { CommandCodeConnectionOptions, CommandCodeModelConfig } from './types.ts';
 export { discoverModels, parseCommandCodeModels, protocolForModel } from './discovery.ts';
 export { parseCommandCodeUsageBodies } from './usage.ts';
 export type { CommandCodeUsageCredits, CommandCodeUsagePlan, CommandCodeUsageRead, CommandCodeUsageSummary, CommandCodeUsageView, CommandCodeUsageWindow, } from './types.ts';
-export { decodeCommandCodeDiscoveryRequest, decodeCommandCodeDiscoveryResult, decodeCommandCodeModel, decodeCommandCodeSaveRequest, decodeCommandCodeSaveResult, decodeCommandCodeSettings, decodeCommandCodeUsageReply, decodeCommandCodeUsageRequest, decodeCommandCodeUsageView, } from './client-contract.ts';
+export { decodeCommandCodeCredentialSetRequest, decodeCommandCodeDiscoveryRequest, decodeCommandCodeDiscoveryResult, decodeCommandCodeModel, decodeCommandCodeSaveRequest, decodeCommandCodeSaveResult, decodeCommandCodeSettings, decodeCommandCodeSettingsReadResult, decodeCommandCodeUsageReply, decodeCommandCodeUsageRequest, decodeCommandCodeUsageView, } from './client-contract.ts';
 export type { CommandCodeDiscoveryRequest, CommandCodeDiscoveryResult, CommandCodeSaveRequest, CommandCodeSaveResult, CommandCodeUsageReply, CommandCodeUsageRequest, } from './client-contract.ts';
 export declare const name = "llm-commandcode";
 export declare const inject: string[];
@@ -27,6 +27,8 @@ export interface Config {
     zeroDataRetention?: boolean;
     usageEnabled?: boolean;
     retryPolicy?: RetryPolicyConfig;
+    /** Expose provider management to configured trusted hosts; disabled keeps loopback-only RPC. */
+    remoteManagement?: boolean;
 }
 export declare const Config: z<Config>;
 export declare function resolveAdapterOptions(config: Config): CommandCodeConnectionOptions;

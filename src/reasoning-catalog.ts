@@ -52,8 +52,9 @@ const OFFICIAL_EFFORTS: Readonly<Record<string, readonly string[]>> = {
   'google/gemini-3.5-flash-lite': THREE,
   'google/gemini-3.1-flash-lite': THREE,
   'sakana/fugu-ultra': ['high', 'xhigh'],
-  'meta/muse-spark-1.2': THREE,
-  'meta/muse-spark-1.2-contributor': THREE,
+  'meta/muse-spark-1.1': FOUR,
+  'meta/muse-spark-1.2': FOUR,
+  'meta/muse-spark-1.2-contributor': FOUR,
   'xai/grok-4.5': THREE,
   'xai/grok-4.6': FOUR,
 }

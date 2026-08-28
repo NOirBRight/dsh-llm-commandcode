@@ -1,34 +1,8 @@
 // @vitest-environment jsdom
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
-import type { CommandCodeSettingsView } from '../src/client-contract.ts'
-
-const value: CommandCodeSettingsView = {
-  apiKeyEnv: 'COMMANDCODE_API_KEY',
-  models: [{ id: 'gpt-test', contextWindow: 500000, inputModalities: ['text'] }],
-  defaultContextWindow: 1000000,
-  defaultMaxTokens: 32768,
-  requestTimeoutMs: 60000,
-  streamIdleTimeoutMs: 300000,
-  zeroDataRetention: false,
-  usageEnabled: true,
-}
-
-function scope(): SettingsScope<CommandCodeSettingsView> {
-  const snapshot: SettingsScopeSnapshot<CommandCodeSettingsView> = {
-    status: 'ready', value, base: value, user: {}, revision: 1, writable: true, mode: 'host',
-  }
-  return {
-    getSnapshot: () => snapshot,
-    subscribe: () => () => undefined,
-    set: vi.fn(() => Promise.resolve()),
-    unset: vi.fn(() => Promise.resolve()),
-  }
-}
-
 interface SlotEntry { options: Record<string, unknown>; inject?: () => unknown }
 
 class FakeSlots extends Service {
@@ -48,7 +22,6 @@ async function bench() {
   await ctx.plugin(FakeSlots).await()
   const slots = ctx.get('slots') as FakeSlots
   ctx.provide('locale', { register: () => () => undefined, bind: () => (key: string) => key } as never)
-  ctx.provide('settingsScope', { bind: () => scope() } as never)
   ctx.provide('connection', {
     api: { credentials: { describe: vi.fn(async () => ({ result: { ok: true, value: { credentials: {} } } })), set: vi.fn(async () => ({ result: { ok: true, value: {} } })) } },
     rpc: { call: vi.fn(async () => ({ ok: true, value: { models: [], warnings: [] } })) },
@@ -58,7 +31,7 @@ async function bench() {
 
 describe('CommandCode client registration', () => {
   it('declares its four client services', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection', 'settingsScope'])
+    expect(inject).toEqual(['slots', 'locale', 'connection'])
   })
 
   it('registers and disposes the Command Code card', async () => {

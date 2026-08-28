@@ -17,7 +17,7 @@ export interface CommandCodeCardFace {
     };
     describeCredential: () => Promise<CommandCodeCredentialState>;
     storeApiKey: (apiKey: string) => Promise<void>;
-    saveConfiguration: (settings: CommandCodeSettingsView, apiKey?: string) => Promise<CommandCodeSaveResult>;
+    saveConfiguration: (settings: CommandCodeSettingsView) => Promise<CommandCodeSaveResult>;
     discoverModels: (request: CommandCodeDiscoveryRequest) => Promise<CommandCodeDiscoveryResult>;
     fetchUsage: () => Promise<CommandCodeUsageRead>;
     beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CommandCodeModelConfig[]) => void) => void;

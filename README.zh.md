@@ -50,6 +50,7 @@ Cordis 配置（卡片写入同一组字段）：
         apiKeyEnv: COMMANDCODE_API_KEY
         usageEnabled: true
         zeroDataRetention: false
+        remoteManagement: false
 
 ## 聊天协议
 
@@ -59,6 +60,12 @@ Cordis 配置（卡片写入同一组字段）：
 - 其余 id → `POST /provider/v1/chat/completions`（OpenAI Chat Completions）
 
 序列化、SSE、工具、附件和 reasoning 都走 DSH `PiAiAdapter`。卡片没有 Image input 开关；有视觉能力的模型沿用发现到的 modalities。
+
+## 外部认证 / 远程管理
+
+API key 只在浏览器输入，由 Host credentials service 保存；provider RPC 只返回 `{ configured, writable }`，永不返回密钥。设置读取、保存、模型发现、额度和凭据写入都走 provider management RPC。设置 revision fence 与凭据保存是分开的操作，不会虚假宣称跨存储原子性。
+
+非本机部署请设置 `remoteManagement: true`，重启 DSH，并用显式信任的浏览器 authority 启动（例如 `dsh web --trusted-host app.example.com`）。保持 `false` 时仅允许 loopback；远程访问被关闭时卡片会提示启用 trusted-host 并重启。
 
 ## 账户额度
 

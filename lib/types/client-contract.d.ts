@@ -10,8 +10,11 @@ export declare const DEFAULT_MAX_TOKENS = 32768;
 export declare const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
 export declare const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300000;
 export declare const COMMANDCODE_RPC_CHANNEL = "/commandcode";
+export declare const COMMANDCODE_SETTINGS_READ_ENDPOINT = "settings/read";
 export declare const COMMANDCODE_DISCOVER_ENDPOINT = "models/discover";
 export declare const COMMANDCODE_SAVE_ENDPOINT = "settings/save";
+export declare const COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT = "credentials/status";
+export declare const COMMANDCODE_CREDENTIAL_SET_ENDPOINT = "credentials/set";
 export declare const COMMANDCODE_USAGE_ENDPOINT = "usage/read";
 /** Settings section mirrored to the browser without a secret. */
 export interface CommandCodeSettingsView {
@@ -40,6 +43,15 @@ export interface CommandCodeSaveResult {
     settings: CommandCodeSettingsView;
     revision: number;
 }
+export interface CommandCodeSettingsReadResult extends CommandCodeSaveResult {
+    credential: {
+        configured: boolean;
+        writable: boolean;
+    };
+}
+export interface CommandCodeCredentialSetRequest {
+    apiKey: string;
+}
 export interface CommandCodeUsageRequest {
 }
 export interface CommandCodeUsageReply {
@@ -54,6 +66,8 @@ export declare function decodeCommandCodeDiscoveryResult(value: unknown): Comman
 export declare function decodeCommandCodeSaveRequest(value: unknown): CommandCodeSaveRequest | undefined;
 export declare function decodeCommandCodeSaveResult(value: unknown): CommandCodeSaveResult | undefined;
 /** Decode the secret-free usage snapshot returned by the Host. */
+export declare function decodeCommandCodeSettingsReadResult(value: unknown): CommandCodeSettingsReadResult | undefined;
+export declare function decodeCommandCodeCredentialSetRequest(value: unknown): CommandCodeCredentialSetRequest | undefined;
 export declare function decodeCommandCodeUsageView(value: unknown): CommandCodeUsageView | undefined;
 export declare function decodeCommandCodeUsageReply(value: unknown): CommandCodeUsageRead | undefined;
 export declare function decodeCommandCodeUsageRequest(value: unknown): CommandCodeUsageRequest | undefined;

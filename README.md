@@ -50,6 +50,7 @@ Cordis config (the card writes the same fields):
         apiKeyEnv: COMMANDCODE_API_KEY
         usageEnabled: true
         zeroDataRetention: false
+        remoteManagement: false
 
 ## Chat protocol
 
@@ -59,6 +60,12 @@ The protocol is fixed by model id, not a user toggle:
 - every other id → `POST /provider/v1/chat/completions` (OpenAI Chat Completions)
 
 Serialization, SSE, tools, attachments, and reasoning go through DSH `PiAiAdapter`. There is no vision toggle on the card; image-capable models keep the modalities they advertised.
+
+## External-auth / remote management
+
+API keys are entered in the browser but stored only by the Host credentials service; the provider RPC exposes only `{ configured, writable }`, never the value. Settings reads, saves, model discovery, usage, and credential writes use the provider management RPC. Settings revision fencing and credential storage are separate operations and are not falsely presented as one atomic transaction.
+
+For a non-loopback deployment, set `remoteManagement: true`, restart DSH, and start it with the browser authority explicitly trusted (for example `dsh web --trusted-host app.example.com`). Keep it `false` for loopback-only operation; if disabled remotely, the card explains that trusted-host access plus a restart is required.
 
 ## Account quota
 

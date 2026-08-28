@@ -1,6 +1,6 @@
 /** Browser face for the Command Code settings and quota card. */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -8,15 +8,17 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import {
+  COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
+  COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
+  COMMANDCODE_SETTINGS_READ_ENDPOINT,
   COMMANDCODE_DISCOVER_ENDPOINT,
   COMMANDCODE_RPC_CHANNEL,
   COMMANDCODE_SAVE_ENDPOINT,
   COMMANDCODE_SETTINGS_NAMESPACE,
   COMMANDCODE_USAGE_ENDPOINT,
-  DEFAULT_API_KEY_ENV,
   decodeCommandCodeDiscoveryResult,
   decodeCommandCodeSaveResult,
-  decodeCommandCodeSettings,
+  decodeCommandCodeSettingsReadResult,
   decodeCommandCodeUsageReply,
 } from '../client-contract.ts'
 import type {
@@ -39,7 +41,7 @@ import { CommandCodeSettingsCard } from './CommandCodeSettingsCard.tsx'
 import type { CommandCodeCardFace } from './CommandCodeSettingsCard.tsx'
 import { en, zh } from './locales.ts'
 export const name = 'dsh-llm-commandcode-client'
-export const inject = ['slots', 'locale', 'connection', 'settingsScope']
+export const inject = ['slots', 'locale', 'connection']
 
 /** Register the Command Code card inside the shared LLM Providers section. */
 export function apply(ctx: ClientContext): void {
@@ -47,58 +49,57 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(localeNamespace, { en, zh }), 'llm-commandcode: locale')
   const t = ctx.locale.bind(localeNamespace) as CommandCodeCardFace['t']
   const picker = new CommandCodeModelPickerController()
-  const scope = ctx.settingsScope.bind<CommandCodeSettingsView>({
-    namespace: COMMANDCODE_SETTINGS_NAMESPACE,
-    decode: decodeCommandCodeSettings,
-  })
-  const { api, rpc } = ctx.get('connection') as unknown as ConnectionHandle
-
+  let snapshot: SettingsScopeSnapshot<CommandCodeSettingsView> = { status: 'loading', value: undefined, base: undefined, user: undefined, revision: undefined, writable: false, mode: 'memory' }
+  const listeners = new Set<() => void>()
+  const scope: SettingsScope<CommandCodeSettingsView> = { getSnapshot: () => snapshot, subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener) } }, set: async () => undefined, unset: async () => undefined }
+  const updateSnapshot = (next: SettingsScopeSnapshot<CommandCodeSettingsView>): void => { snapshot = next; listeners.forEach(listener => { listener() }) }
+  const { rpc } = ctx.get('connection') as unknown as ConnectionHandle
+  const callPlugin = async (endpoint: string, payload: unknown) => rpc.call(COMMANDCODE_RPC_CHANNEL, endpoint, payload)
+  const readManagement = async (): Promise<void> => {
+    const result = await callPlugin(COMMANDCODE_SETTINGS_READ_ENDPOINT, {})
+    if (!result.ok) { updateSnapshot({ ...snapshot, status: 'unavailable' }); return }
+    const decoded = decodeCommandCodeSettingsReadResult(result.value)
+    if (decoded === undefined) { updateSnapshot({ ...snapshot, status: 'unavailable' }); return }
+    updateSnapshot({ status: 'ready', value: decoded.settings, base: decoded.settings, user: decoded.settings, revision: decoded.revision, writable: decoded.credential.writable, mode: 'host' })
+  }
+  void readManagement()
   const describeCredential: CommandCodeCardFace['describeCredential'] = async () => {
-    const ref = scope.getSnapshot().value?.apiKeyEnv ?? DEFAULT_API_KEY_ENV
-    const response = await api.credentials.describe({ refs: [ref] })
-    if (!response.result.ok) throw new Error(response.result.error.message)
-    const value = response.result.value.credentials[ref]
-    return { configured: value?.configured ?? false, writable: value?.writable ?? true }
+    const result = await callPlugin(COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT, {})
+    if (!result.ok) throw new Error(result.error.message)
+    const value = result.value as { configured?: unknown; writable?: unknown }
+    if (typeof value.configured !== 'boolean' || typeof value.writable !== 'boolean') throw new Error(t('requestFailed'))
+    return { configured: value.configured, writable: value.writable }
   }
-
   const storeApiKey: CommandCodeCardFace['storeApiKey'] = async (value) => {
-    const ref = scope.getSnapshot().value?.apiKeyEnv ?? DEFAULT_API_KEY_ENV
-    const response = await api.credentials.set({ ref, value })
-    if (!response.result.ok) throw new Error(response.result.error.message)
+    const result = await callPlugin(COMMANDCODE_CREDENTIAL_SET_ENDPOINT, { apiKey: value })
+    if (!result.ok) throw new Error(result.error.message)
   }
-
-  const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async (settings, apiKey) => {
-    const snapshot = scope.getSnapshot()
-    if (snapshot.revision === undefined) throw new Error(t('saveFailed'))
+  const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async (settings) => {
+    const current = scope.getSnapshot()
+    if (current.revision === undefined) throw new Error(t('saveFailed'))
     const { apiKeyEnv: _apiKeyEnv, ...withoutKey } = settings
-    const result = await rpc.call(COMMANDCODE_RPC_CHANNEL, COMMANDCODE_SAVE_ENDPOINT, {
-      settings: withoutKey,
-      expectedRevision: snapshot.revision,
-    })
+    const result = await callPlugin(COMMANDCODE_SAVE_ENDPOINT, { settings: withoutKey, expectedRevision: current.revision })
     if (!result.ok) throw new Error(result.error.message)
     const saved = decodeCommandCodeSaveResult(result.value)
     if (saved === undefined) throw new Error(t('saveFailed'))
-    if (apiKey !== undefined && apiKey.trim().length > 0) await storeApiKey(apiKey.trim())
+    updateSnapshot({ ...snapshot, status: 'ready', value: saved.settings, base: saved.settings, user: saved.settings, revision: saved.revision, writable: snapshot.writable, mode: 'host' })
     return saved
   }
-
   const discover: CommandCodeCardFace['discoverModels'] = async (request: CommandCodeDiscoveryRequest) => {
-    const result = await rpc.call(COMMANDCODE_RPC_CHANNEL, COMMANDCODE_DISCOVER_ENDPOINT, request)
+    const result = await callPlugin(COMMANDCODE_DISCOVER_ENDPOINT, request)
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCommandCodeDiscoveryResult(result.value)
     if (decoded === undefined) throw new Error(t('discoveryEmpty'))
     return decoded
   }
-
   const fetchUsage: CommandCodeCardFace['fetchUsage'] = async () => {
-    const result = await rpc.call(COMMANDCODE_RPC_CHANNEL, COMMANDCODE_USAGE_ENDPOINT, {})
+    const result = await callPlugin(COMMANDCODE_USAGE_ENDPOINT, {})
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCommandCodeUsageReply(result.value)
     if (decoded === undefined) throw new Error(t('quotaFailed'))
     if (decoded.status === 'unsupported') return { status: 'unsupported' }
     return { status: 'ok', usage: decoded.usage } as CommandCodeUsageRead
   }
-
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'commandcode-model-picker',
