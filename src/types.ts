@@ -21,6 +21,8 @@ export interface CommandCodeModelConfig {
   /** Explicit user correction, which wins over the provider value. */
   contextWindowOverride?: number
   maxTokens?: number
+  /** Whether the model supports native thinking; false clears defaultEffort. */
+  thinking?: boolean
   /** Saved default effort; omission derives the provider plugin policy. */
   defaultEffort?: string
   inputModalities?: ModelModality[]

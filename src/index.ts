@@ -105,6 +105,7 @@ const catalogModel: z<CommandCodeModelConfig> = z.object({
   contextWindow: z.number().step(1).min(1),
   contextWindowOverride: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
+  thinking: z.boolean(),
   defaultEffort: z.string(),
   inputModalities: z.array(z.union(MODEL_MODALITIES)).default(['text']),
 })
@@ -145,11 +146,20 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
     if (model.contextWindow !== undefined && !isPositiveInteger(model.contextWindow)) throw new Error('llm-commandcode: invalid contextWindow for ' + model.id)
     if (model.contextWindowOverride !== undefined && !isPositiveInteger(model.contextWindowOverride)) throw new Error('llm-commandcode: invalid contextWindowOverride for ' + model.id)
     if (model.maxTokens !== undefined && !isPositiveInteger(model.maxTokens)) throw new Error('llm-commandcode: invalid maxTokens for ' + model.id)
-    const efforts = effortsForCommandCodeModel(model)
-    const defaultEffort = defaultEffortForCommandCodeModel(model)
-    if (model.defaultEffort !== undefined && !efforts.includes(model.defaultEffort)) throw new Error('llm-commandcode: defaultEffort is not offered for ' + model.id)
+    if (model.thinking !== undefined && typeof model.thinking !== 'boolean') throw new Error('llm-commandcode: invalid thinking for ' + model.id)
+    // Thinking persistence: when explicitly disabled, discard any persisted effort.
+    const normalizedEffort = model.thinking === false ? undefined : model.defaultEffort
+    const effortModel = normalizedEffort === undefined ? { id: model.id } : { id: model.id, defaultEffort: normalizedEffort }
+    const efforts = effortsForCommandCodeModel({ id: model.id })
+    const hasEfforts = efforts.length > 0
+    // Migration: old configs without thinking keep their effort if the model supports it.
+    const effectiveThinking = model.thinking ?? (hasEfforts ? undefined : undefined)
+    if (normalizedEffort !== undefined && !efforts.includes(normalizedEffort)) throw new Error('llm-commandcode: defaultEffort is not offered for ' + model.id)
+    const defaultEffort = model.thinking === false ? undefined : defaultEffortForCommandCodeModel(effortModel)
     const input = model.inputModalities === undefined || model.inputModalities.length === 0 ? ['text'] as const : model.inputModalities
     if (new Set(input).size !== input.length || input.some(item => !MODEL_MODALITIES.includes(item))) throw new Error('llm-commandcode: invalid inputModalities for ' + model.id)
+    // When thinking is explicitly false, ensure no stale effort is persisted.
+    const persistedEffort = model.thinking === false ? undefined : defaultEffort
     return {
       id: model.id,
       ...(model.name === undefined ? {} : { name: model.name }),
@@ -157,7 +167,8 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
       ...(model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow }),
       ...(model.contextWindowOverride === undefined ? {} : { contextWindowOverride: model.contextWindowOverride }),
       ...(model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens }),
-      ...(defaultEffort === undefined ? {} : { defaultEffort }),
+      ...(effectiveThinking === undefined ? {} : { thinking: effectiveThinking }),
+      ...(persistedEffort === undefined ? {} : { defaultEffort: persistedEffort }),
       inputModalities: [...input],
     }
   })

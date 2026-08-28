@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommandCodeSettingsCard } from '../src/client/CommandCodeSettingsCard.tsx'
 import { en } from '../src/client/locales.ts'
+import { catalogStyles } from '../src/client/model-catalog-ui.tsx'
 import type { CommandCodeSettingsView } from '../src/client-contract.ts'
 import type { CommandCodeSettingsCardProps } from '../src/client/CommandCodeSettingsCard.tsx'
 
@@ -65,7 +66,16 @@ describe('CommandCodeSettingsCard', () => {
     expect(screen.getByDisplayValue('1050000')).toBeTruthy()
     // hint removed to match Codex strict layout - efforts are now only in the dropdown
     expect(screen.queryByText('Low · Medium · High · Extra high · Max')).toBeNull()
-    expect((screen.getByRole('combobox', { name: 'Default thinking' }) as HTMLSelectElement).value).toBe('max')
+    const thinkingSelect = screen.getByRole('combobox', { name: 'Default thinking' }) as HTMLSelectElement
+    expect(thinkingSelect.value).toBe('max')
+    // Default thinking must use selectStyle (32h with arrow), not inputStyle (36h)
+    expect(thinkingSelect.style.minHeight).toBe('32px')
+    expect(thinkingSelect.style.backgroundImage).toContain('svg')
+    expect(thinkingSelect.style.paddingRight).toContain('28px')
+    // shared tokens: 36h input vs 32h row/select
+    expect(String(catalogStyles.inputStyle.minHeight)).toBe('36')
+    expect(String(catalogStyles.selectStyle.minHeight)).toBe('32')
+    expect(String(catalogStyles.rowInputStyle.minHeight)).toBe('32')
     expect(screen.queryByText('Image input')).toBeNull()
     expect(screen.queryByText('Protocol')).toBeNull()
     expect((screen.getByRole('textbox', { name: 'Provider API URL' }) as HTMLInputElement).disabled).toBe(true)

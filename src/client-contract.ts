@@ -101,9 +101,13 @@ export function decodeCommandCodeModel(value: unknown): CommandCodeModelConfig |
   if (!optionalPositiveInteger(value.contextWindowOverride)) return undefined
   if (!optionalPositiveInteger(value.maxTokens)) return undefined
   if (value.reasoningEfforts !== undefined) return undefined
-  if (value.defaultEffort !== undefined) {
-    if (typeof value.defaultEffort !== 'string' || value.defaultEffort.length === 0) return undefined
-    if (!effortsForCommandCodeModel({ id: value.id }).includes(value.defaultEffort)) return undefined
+  if (value.thinking !== undefined && typeof value.thinking !== 'boolean') return undefined
+  // Migration: thinking false clears defaultEffort; old configs without thinking keep their effort.
+  const thinking = value.thinking as boolean | undefined
+  const rawEffort = thinking === false ? undefined : value.defaultEffort
+  if (rawEffort !== undefined) {
+    if (typeof rawEffort !== 'string' || rawEffort.length === 0) return undefined
+    if (!effortsForCommandCodeModel({ id: value.id }).includes(rawEffort as string)) return undefined
   }
   let modalities: ('text' | 'image')[] | undefined
   if (value.inputModalities !== undefined) {
@@ -120,7 +124,8 @@ export function decodeCommandCodeModel(value: unknown): CommandCodeModelConfig |
     ...(value.contextWindow === undefined ? {} : { contextWindow: value.contextWindow }),
     ...(value.contextWindowOverride === undefined ? {} : { contextWindowOverride: value.contextWindowOverride }),
     ...(value.maxTokens === undefined ? {} : { maxTokens: value.maxTokens }),
-    ...(value.defaultEffort === undefined ? {} : { defaultEffort: value.defaultEffort }),
+    ...(thinking === undefined ? {} : { thinking }),
+    ...(rawEffort === undefined ? {} : { defaultEffort: rawEffort as string }),
     ...(modalities === undefined ? {} : { inputModalities: modalities }),
   }
 }

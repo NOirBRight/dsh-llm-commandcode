@@ -11,6 +11,7 @@ export function applyCommandCodeReasoningMetadata(
   info: LlmResolvedModelInfo,
   model: CommandCodeModelConfig,
 ): LlmResolvedModelInfo {
+  if (model.thinking === false) return info
   const efforts = effortsForCommandCodeModel(model)
   if (efforts.length === 0) return info
   const resolvedDefault = defaultEffortForCommandCodeModel(model)

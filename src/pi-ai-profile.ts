@@ -32,6 +32,7 @@ export function anthropicBaseURL(providerBaseURL: string): string {
 }
 
 function thinkingLevelMap(model: CommandCodeModelConfig) {
+  if (model.thinking === false) return undefined
   const efforts = effortsForCommandCodeModel(model)
   if (efforts.length === 0) return undefined
   return Object.fromEntries(efforts.map(effort => [effort, effort]))

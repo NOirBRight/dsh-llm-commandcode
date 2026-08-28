@@ -18,6 +18,15 @@ import { BrandMark } from './BrandMark.tsx'
 import { ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerHeaderStyle } from './provider-chrome.tsx'
 import { SortableList } from './SortableList.tsx'
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
+import {
+  ModelCatalogFields,
+  fieldStyle,
+  inputStyle,
+  labelStyle,
+  modelContentStyle,
+  rowInputStyle,
+  rowStyle,
+} from './model-catalog-ui.tsx'
 
 export interface CommandCodeCredentialState {
   configured: boolean
@@ -50,7 +59,7 @@ interface ModelDraft {
   maxTokens?: string
   defaultEffort?: string
   vision?: boolean
-  reasoningEnabled?: boolean
+  thinking?: boolean
 }
 
 interface Draft {
@@ -76,15 +85,7 @@ const bodyStyle: CSSProperties = {
 }
 const sectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 }
 const sectionTitleStyle: CSSProperties = { margin: 0, fontSize: 14, lineHeight: '20px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }
-const fieldStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
-const labelStyle: CSSProperties = { fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }
 const hintStyle: CSSProperties = { margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }
-const inputStyle: CSSProperties = {
-  boxSizing: 'border-box', width: '100%', height: 32, border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 8,
-  padding: '0 10px', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', font: 'inherit', fontSize: 14, lineHeight: '22px',
-}
-const rowInputStyle: CSSProperties = { ...inputStyle, height: 32, padding: '0 8px' }
-const rowStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }
 const actionsStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }
 const buttonStyle: CSSProperties = {
   minHeight: 34, border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 18, padding: '6px 14px',
@@ -96,21 +97,6 @@ const iconButtonStyle: CSSProperties = {
   flex: 'none', border: 0, borderRadius: 6, padding: 0, background: 'transparent', color: 'var(--dsw-alias-label-tertiary)', font: 'inherit', cursor: 'pointer',
 }
 const disclosureStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, border: 0, padding: 0, background: 'transparent', color: 'var(--dsw-alias-label-primary)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }
-const modelContentStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr) auto auto', alignItems: 'center', gap: 6, padding: '6px 8px' }
-const modelDetailStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '10px 4px 4px' }
-const capabilitiesStyle: CSSProperties = { display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }
-const selectStyle: CSSProperties = {
-  ...inputStyle,
-  appearance: 'none',
-  paddingRight: 32,
-  backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\' fill=\'none\'%3E%3Cpath d=\'M3 4.5L6 7.5L9 4.5\' stroke=\'%2381858C\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/%3E%3C/svg%3E")',
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 12px center',
-  backgroundSize: '12px 12px',
-  cursor: 'pointer',
-  maxWidth: 240,
-}
-
 const statusStyle: CSSProperties = { margin: 0, fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }
 const errorStyle: CSSProperties = { ...statusStyle, color: 'var(--dsw-alias-state-error-primary)' }
 const barTrackStyle: CSSProperties = { boxSizing: 'border-box', height: 14, display: 'flex', overflow: 'hidden', borderRadius: 999, background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)' }
@@ -119,10 +105,13 @@ let nextModelRow = 0
 function newModelRowId(): string { nextModelRow += 1; return 'commandcode-model-row-' + String(nextModelRow) }
 
 function modelDraftOf(model: CommandCodeModelConfig): ModelDraft {
-  const defaultEffort = defaultEffortForCommandCodeModel(model)
-  const vision = model.inputModalities?.includes('image') ?? false
   const efforts = effortsForCommandCodeModel(model)
-  const reasoningEnabled = efforts.length === 0 ? undefined : true
+  const hasEfforts = efforts.length > 0
+  const vision = model.inputModalities?.includes('image') ?? false
+  // Thinking persistence: explicit false stays false; otherwise derive default effort and keep thinking true when applicable.
+  // Old configs without thinking keep their effort and are treated as thinking true if the model supports it.
+  const thinking = model.thinking === false ? false : model.thinking === true ? true : hasEfforts ? undefined : undefined
+  const defaultEffort = model.thinking === false ? undefined : defaultEffortForCommandCodeModel(model)
   return {
     rowId: newModelRowId(), id: model.id,
     ...(model.name === undefined ? {} : { name: model.name }),
@@ -132,7 +121,7 @@ function modelDraftOf(model: CommandCodeModelConfig): ModelDraft {
     ...(model.maxTokens === undefined ? {} : { maxTokens: String(model.maxTokens) }),
     ...(defaultEffort === undefined ? {} : { defaultEffort }),
     ...(vision ? { vision: true } : {}),
-    ...(reasoningEnabled === undefined ? {} : { reasoningEnabled }),
+    ...(thinking === undefined ? {} : { thinking }),
   }
 }
 
@@ -152,8 +141,10 @@ function modelSettingsOf(draft: ModelDraft): CommandCodeModelConfig {
   const contextWindow = integerOf(draft.contextWindow)
   const contextWindowOverride = draft.contextWindowOverride === undefined ? undefined : integerOf(draft.contextWindowOverride)
   const maxTokens = draft.maxTokens === undefined ? undefined : integerOf(draft.maxTokens)
-  const effortModel = { id: draft.id.trim(), ...(draft.defaultEffort === undefined ? {} : { defaultEffort: draft.defaultEffort }) }
-  const defaultEffort = draft.reasoningEnabled === false ? undefined : defaultEffortForCommandCodeModel(effortModel)
+  const thinking = draft.thinking
+  // When thinking is explicitly disabled, clear the persisted effort (migration fix).
+  const effortModel = thinking === false ? { id: draft.id.trim() } : { id: draft.id.trim(), ...(draft.defaultEffort === undefined ? {} : { defaultEffort: draft.defaultEffort }) }
+  const defaultEffort = thinking === false ? undefined : defaultEffortForCommandCodeModel(effortModel)
   const vision = draft.vision === true
   const inputModalities = vision ? ['text' as const, 'image' as const] : undefined
   return {
@@ -163,6 +154,7 @@ function modelSettingsOf(draft: ModelDraft): CommandCodeModelConfig {
     ...(contextWindow === undefined || Number.isNaN(contextWindow) ? {} : { contextWindow }),
     ...(contextWindowOverride === undefined || Number.isNaN(contextWindowOverride) ? {} : { contextWindowOverride }),
     ...(maxTokens === undefined || Number.isNaN(maxTokens) ? {} : { maxTokens }),
+    ...(thinking === undefined ? {} : { thinking }),
     ...(defaultEffort === undefined ? {} : { defaultEffort }),
     ...(inputModalities === undefined ? {} : { inputModalities }),
   }
@@ -211,26 +203,33 @@ function ModelDetails(props: {
   const efforts = effortsForCommandCodeModel(policyModel)
   const defaultEffort = defaultEffortForCommandCodeModel(policyModel)
   const hasEfforts = efforts.length > 0
-  const reasoningChecked = hasEfforts ? (model.reasoningEnabled ?? true) : false
+  const thinkingChecked = hasEfforts ? (model.thinking ?? true) : false
   const visionChecked = model.vision ?? false
   const contextValue = model.contextWindowOverride ?? model.contextWindow ?? ''
   return (
-    <div style={{ ...modelDetailStyle, gridColumn: '1 / -1' }}>
-      <div style={rowStyle}>
-        <label style={fieldStyle}><span style={labelStyle}>{t('contextWindow')}</span><input style={inputStyle} inputMode="numeric" value={contextValue} placeholder={t('useProviderContext')} disabled={disabled} aria-label={t('contextWindow')} onChange={event => {
-          const v = event.target.value
-          if (v.trim() === '') patch({ contextWindow: '', contextWindowOverride: undefined })
-          else patch({ contextWindow: v, contextWindowOverride: undefined })
-        }} /></label>
-      </div>
-      <div style={capabilitiesStyle}>
-        <Capability label={t('vision')} checked={visionChecked} disabled={disabled} onChange={value => patch({ vision: value ? true : undefined })} />
-        <Capability label={t('reasoning')} checked={reasoningChecked} disabled={disabled || !hasEfforts} onChange={value => patch({ reasoningEnabled: value ? true : false, ...(value ? {} : { defaultEffort: undefined }) })} />
-        {hasEfforts && reasoningChecked ? (
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...labelStyle }}><span style={labelStyle}>{t('defaultThinking')}</span><select style={selectStyle} value={defaultEffort ?? efforts[0] ?? ''} disabled={disabled} aria-label={t('defaultThinking')} onChange={event => patch({ defaultEffort: event.target.value })}>{efforts.map(effort => <option key={effort} value={effort}>{EFFORT_LABELS[effort] ?? effort}</option>)}</select></label>
-        ) : null}
-      </div>
-    </div>
+    <ModelCatalogFields
+      contextWindow={contextValue}
+      contextLabel={t('contextWindow')}
+      contextPlaceholder={t('useProviderContext')}
+      onContextWindowChange={value => {
+        if (value.trim() === '') patch({ contextWindow: '', contextWindowOverride: undefined })
+        else patch({ contextWindow: value, contextWindowOverride: undefined })
+      }}
+      visionChecked={visionChecked}
+      visionLabel={t('vision')}
+      onVisionChange={value => patch({ vision: value ? true : undefined })}
+      thinkingChecked={thinkingChecked}
+      thinkingLabel={t('reasoning')}
+      thinkingDisabled={!hasEfforts}
+      onThinkingChange={value => patch({ thinking: value ? true : false, ...(value ? {} : { defaultEffort: undefined }) })}
+      defaultThinkingLabel={t('defaultThinking')}
+      defaultThinkingValue={defaultEffort ?? efforts[0] ?? ''}
+      defaultThinkingOptions={efforts}
+      onDefaultThinkingChange={value => patch({ defaultEffort: value })}
+      getOptionLabel={effort => EFFORT_LABELS[effort] ?? effort}
+      showDefaultThinking={hasEfforts && thinkingChecked}
+      disabled={disabled}
+    />
   )
 }
 
@@ -289,14 +288,19 @@ function mergeSelected(current: readonly ModelDraft[], selected: readonly Comman
       ...(prior.maxTokens === undefined ? {} : { maxTokens: prior.maxTokens }),
       ...(prior.defaultEffort === undefined ? {} : { defaultEffort: prior.defaultEffort }),
       ...(prior.vision === undefined ? {} : { vision: prior.vision }),
-      ...(prior.reasoningEnabled === undefined ? {} : { reasoningEnabled: prior.reasoningEnabled }),
+      ...(prior.thinking === undefined ? {} : { thinking: prior.thinking }),
     }
   })
 }
 
 function patchedModel(model: ModelDraft, patch: ModelPatch): ModelDraft {
   const next: Record<string, unknown> = { ...model }
-  for (const [key, value] of Object.entries(patch)) { if (value === undefined) delete next[key]; else next[key] = value }
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) delete next[key]
+    else next[key] = value
+    // Thinking persistence: clearing thinking disables effort.
+    if (key === 'thinking' && value === false) delete (next as Record<string, unknown>).defaultEffort
+  }
   return next as unknown as ModelDraft
 }
 
@@ -412,7 +416,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
           </section>
           <section style={sectionStyle} aria-label={t('models')}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <button type="button" style={disclosureStyle} aria-expanded={catalogOpen} aria-label={t('models')} onClick={() => setCatalogOpen(current => !current)}><IconChevron open={catalogOpen} /><span style={sectionTitleStyle}>{t('models')}</span><span style={hintStyle}>{interpolate(t('modelCount'), { count: draft.models.length })}{draft.models.length > 0 ? ' · ' + t('customCatalog') : ''}</span></button>
+              <button type="button" style={disclosureStyle} aria-expanded={catalogOpen} aria-label={t('models')} onClick={() => setCatalogOpen(current => !current)}><IconChevron open={catalogOpen} /><span style={sectionTitleStyle}>{t('models')}</span><span style={hintStyle}>{draft.models.length > 0 ? t('customCatalog') : t('defaultCatalog')}</span></button>
               <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => void fetchModels()}>{fetching ? t('fetchingModels') : t('refreshModels')}</button>
             </div>
             {catalogOpen ? <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {

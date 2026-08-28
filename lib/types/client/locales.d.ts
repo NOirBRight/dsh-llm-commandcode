@@ -20,6 +20,7 @@ export declare const en: {
     readonly providerURLHint: "Fixed official Command Code Provider API endpoint.";
     readonly models: "Model catalog";
     readonly modelCount: "{count} models";
+    readonly defaultCatalog: "Default catalog";
     readonly customCatalog: "Custom catalog";
     readonly refreshModels: "Choose from official catalog";
     readonly fetchingModels: "Fetching models…";
