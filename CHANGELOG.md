@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.11
+
+- Unify model catalog to opencode baseline (Context first row, Vision/Reasoning/Default thinking second row, 32/36px)
+- fix thinking persistence
+
 ## 0.1.3
 
 - Unify model catalog to opencode baseline (Context first row, Vision/Reasoning/Default thinking second row, 32/36px) - fix thinking persistence
