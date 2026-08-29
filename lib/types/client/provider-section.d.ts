@@ -1,9 +1,10 @@
-/** Shared Settings > LLM Providers section, claimed by the first provider plugin. */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
+/** Shared Settings > LLM 供应商 section. First installed provider plugin wins the nav row. */
+import type { ClientContext } from './shim.js';
 export declare const PROVIDERS_SECTION_ID = "providers";
 export declare const PROVIDERS_ITEM_SLOT = "settings.provider.item";
 export declare const PROVIDERS_LOCALE_NS = "settings.providers";
-export declare const PROVIDER_ITEM_ORDER: readonly ["llm-cursor", "llm-grok", "llm-codex", "llm-ollama", "llm-commandcode"];
+/** Display order for installed provider cards. Absent plugins render nothing. */
+export declare const PROVIDER_ITEM_ORDER: readonly ["llm-cursor", "llm-grok", "llm-codex", "llm-ollama", "llm-commandcode", "llm-opencode-go"];
 declare const copy: {
     zh: {
         nav: string;
@@ -29,7 +30,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'settings.providers': keyof typeof copy.en;
     }
 }
-/** Ensure an LLM Providers nav row exists without duplicating another plugin's row. */
+/**
+ * Register the shared LLM 供应商 section when missing. Uninstalling every
+ * provider plugin drops the nav row because only they call this helper.
+ * @param ctx - browser plugin context (slots + locale).
+ */
 export declare function ensureProviderSection(ctx: ClientContext): void;
 export {};
 //# sourceMappingURL=provider-section.d.ts.map

@@ -1,6 +1,6 @@
 /** Browser face for the Command Code settings and quota card. */
 
-import type { ClientContext, SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, SettingsScope, SettingsScopeSnapshot } from './shim.js'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -44,6 +44,7 @@ export const name = 'dsh-llm-commandcode-client'
 export const inject = ['slots', 'locale', 'connection']
 
 /** Register the Command Code card inside the shared LLM Providers section. */
+
 export function apply(ctx: ClientContext): void {
   const localeNamespace = 'settings.commandcode'
   ctx.effect(() => ctx.locale.register(localeNamespace, { en, zh }), 'llm-commandcode: locale')
