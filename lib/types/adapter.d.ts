@@ -14,6 +14,13 @@ export declare class CommandCodeAdapter extends LlmAdapter {
     private current;
     providerInfo(provider: string): LlmProviderInfo;
     providerRetryPolicy(provider: string): ResolvedRetryPolicy | undefined;
+    /**
+     * Declare neutral request-image pricing when a newer Host calls an adapter built against an older peer instance.
+     * @param _provider - provider route.
+     * @param _model - model id.
+     * @returns `undefined` so the Host uses heuristic image pricing.
+     */
+    imageRequestPricing(_provider: string, _model: string): undefined;
     listModels(provider: string): Promise<readonly LlmModelInfo[]>;
     resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;
     stream(options: GenerateOptions): AsyncIterable<StreamChunk>;
