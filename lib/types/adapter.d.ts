@@ -5,6 +5,12 @@ import type { CommandCodeAdapterOptions } from './types.ts';
 export { DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, PUBLIC_PROVIDER_BASE_URL, } from './client-contract.ts';
 /** Compatibility helper retained for package callers and diagnostics. */
 export declare function httpErrorCode(status: number, body?: unknown): string;
+/**
+ * Remove sandbox escalation choices that cannot be strictly wider than the
+ * current DSH policy. Core still validates every retained request; this only
+ * prevents Codex from selecting an impossible optional enum value.
+ */
+export declare function narrowCommandCodeEscalationSchemas(options: GenerateOptions): GenerateOptions;
 /** One DSH provider route backed by a pi-ai provider with per-model api dispatch. */
 export declare class CommandCodeAdapter extends LlmAdapter {
     private readonly config;

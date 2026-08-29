@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.14
+
+- Filter impossible sandbox escalation enums before the provider request (scan both system and context-injected messages). Both direct and prepared streams now narrow `sandbox_permissions` to strictly wider modes and drop `justification` when none remain; immutable and tested for all modes.
+
 ## 0.1.13
 
 - Support the DSH 0.1.2-alpha.1 Host image-pricing call with neutral heuristic pricing

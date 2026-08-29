@@ -11,7 +11,7 @@ DeepSeek Harness 的 Command Code Provider API 插件。独立 provider 路由�
 需要 DeepSeek Harness 0.1.1-rc.2 或更新版本。直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.1
+dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.14
 dsh web
 ~~~
 
