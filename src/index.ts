@@ -7,6 +7,7 @@ import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } f
 import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { ensureProviderOrderSettings } from 'dsh-llm-providers-ui'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
@@ -333,6 +334,7 @@ export function apply(ctx: Context, config: Config): void {
     )
   })
 
+  ensureProviderOrderSettings(ctx)
   installSettingsSection(ctx, NS, Config, config, {
     setSource: source => { current = source },
     onChange: ensureRegistration,

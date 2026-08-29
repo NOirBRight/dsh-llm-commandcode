@@ -13,10 +13,10 @@ import type {
 import { PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
-import './provider-section.ts'
+import type {} from 'dsh-llm-providers-ui/client'
 import { BrandMark } from './BrandMark.tsx'
 import { ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerHeaderStyle } from './provider-chrome.tsx'
-import { SortableList } from './SortableList.tsx'
+import { SortableList } from 'dsh-llm-providers-ui/client'
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
 import {
   ModelCatalogFields,

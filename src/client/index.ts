@@ -14,6 +14,7 @@ import {
   COMMANDCODE_DISCOVER_ENDPOINT,
   COMMANDCODE_RPC_CHANNEL,
   COMMANDCODE_SAVE_ENDPOINT,
+  COMMANDCODE_PROVIDER,
   COMMANDCODE_SETTINGS_NAMESPACE,
   COMMANDCODE_USAGE_ENDPOINT,
   decodeCommandCodeDiscoveryResult,
@@ -26,7 +27,7 @@ import type {
   CommandCodeSettingsView,
 } from '../client-contract.ts'
 import type { CommandCodeUsageRead } from '../types.ts'
-import { ensureProviderSection } from './provider-section.ts'
+import { ensureProviderSection } from 'dsh-llm-providers-ui/client'
 import { CommandCodeModelPicker, CommandCodeModelPickerController } from './CommandCodeModelPicker.tsx'
 import type { CommandCodeModelPickerFace } from './CommandCodeModelPicker.tsx'
 import type { CommandCodeSettingsKey } from './locales.ts'
@@ -118,6 +119,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
     name: 'settings.provider.item',
     key: COMMANDCODE_SETTINGS_NAMESPACE,
+    provider: COMMANDCODE_PROVIDER,
     locale: localeNamespace,
     inject: (): CommandCodeCardFace => ({
       t,
