@@ -1,4 +1,6 @@
-/** Shared Settings > LLM 供应商 section. First installed provider plugin wins the nav row. */
+/** Shared Settings > LLM 供应商 section. First installed provider plugin wins the nav row.
+ *  Live `settings.provider.item` key subscription is required on alpha.1: the official
+ *  plugin-item roster is keyed dynamically, so a static card list would go blank. */
 
 import type { ClientContext } from './shim.js'
 import { installProvidersNavIcon } from './provider-chrome.tsx'
