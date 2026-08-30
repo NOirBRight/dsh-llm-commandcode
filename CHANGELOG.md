@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.15
+
+- Settings → LLM Providers: drag cards to reorder; chat picker follows `llm-providers.order` via dsh-llm-providers-ui.
+
+
 ## 0.1.14
 
 - Filter impossible sandbox escalation enums before the provider request (scan both system and context-injected messages). Both direct and prepared streams now narrow `sandbox_permissions` to strictly wider modes and drop `justification` when none remain; immutable and tested for all modes.

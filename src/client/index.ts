@@ -14,7 +14,6 @@ import {
   COMMANDCODE_DISCOVER_ENDPOINT,
   COMMANDCODE_RPC_CHANNEL,
   COMMANDCODE_SAVE_ENDPOINT,
-  COMMANDCODE_PROVIDER,
   COMMANDCODE_SETTINGS_NAMESPACE,
   COMMANDCODE_USAGE_ENDPOINT,
   decodeCommandCodeDiscoveryResult,
@@ -32,6 +31,12 @@ import { CommandCodeModelPicker, CommandCodeModelPickerController } from './Comm
 import type { CommandCodeModelPickerFace } from './CommandCodeModelPicker.tsx'
 import type { CommandCodeSettingsKey } from './locales.ts'
 
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    'settings.provider.item': { kind: 'keyed'; scope: 'root' }
+  }
+}
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     'settings.commandcode': CommandCodeSettingsKey
@@ -119,7 +124,6 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
     name: 'settings.provider.item',
     key: COMMANDCODE_SETTINGS_NAMESPACE,
-    provider: COMMANDCODE_PROVIDER,
     locale: localeNamespace,
     inject: (): CommandCodeCardFace => ({
       t,
