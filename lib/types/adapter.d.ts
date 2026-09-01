@@ -21,8 +21,7 @@ export declare class CommandCodeAdapter extends LlmAdapter {
     providerInfo(provider: string): LlmProviderInfo;
     providerRetryPolicy(provider: string): ResolvedRetryPolicy | undefined;
     /**
-     * Declare neutral request-image pricing when a newer Host calls an adapter built against an older peer instance.
-     * The method omits `override` so the same source compiles against pre-alpha peer types.
+     * Declare neutral request-image pricing so the Host uses heuristic image pricing.
      * @param _provider - provider route.
      * @param _model - model id.
      * @returns `undefined` so the Host uses heuristic image pricing.

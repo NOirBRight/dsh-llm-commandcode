@@ -7,7 +7,6 @@ import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } f
 import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
-import { ensureProviderOrderSettings } from 'dsh-llm-providers-ui'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
@@ -121,8 +120,6 @@ export interface Config {
   zeroDataRetention?: boolean
   usageEnabled?: boolean
   retryPolicy?: RetryPolicyConfig
-  /** Expose provider management to configured trusted hosts; disabled keeps loopback-only RPC. */
-  remoteManagement?: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -135,7 +132,6 @@ export const Config: z<Config> = z.object({
   zeroDataRetention: z.boolean().default(false),
   usageEnabled: z.boolean().default(true),
   retryPolicy: RetryPolicySchema,
-  remoteManagement: z.boolean().default(false),
 })
 
 function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): CommandCodeModelConfig[] {
@@ -252,14 +248,14 @@ export function apply(ctx: Context, config: Config): void {
     registeredPolicy = policy
   }
 
-  ctx.llm.registerModelDiscovery(NS, async request => {
-    return (await discoverModels({
-      ...(request.signal === undefined ? {} : { signal: request.signal }),
-    })).models
+  ctx.llm.registerModelDiscovery(NS, async (_request, signal) => {
+    return (await discoverModels(signal === undefined ? {} : { signal })).models
   })
 
-  ctx.inject(['connection'], connectionCtx => {
-    connectionCtx.connection.rpc.handle(
+  ctx.effect(() => {
+    const connectionFiber = ctx.inject(['connection'], connectionCtx => {
+      connectionCtx.effect(
+        () => connectionCtx.connection.rpc.handle(
       COMMANDCODE_RPC_CHANNEL,
       async (endpoint, payload, signal) => {
         if (endpoint === COMMANDCODE_SETTINGS_READ_ENDPOINT) {
@@ -278,7 +274,9 @@ export function apply(ctx: Context, config: Config): void {
           if (credentials === undefined) return failure('Command Code credentials are unavailable')
           try {
             await credentials.set(options().apiKeyEnv, request.apiKey)
-          } catch {
+          } catch (error: unknown) {
+            // Do not throw credential-store details through the RPC; return a stable wire failure instead.
+            void error
             return failure('Command Code credential write failed')
           }
           return { ok: true as const, value: await credentialStatus() }
@@ -330,11 +328,12 @@ export function apply(ctx: Context, config: Config): void {
         }
         return failure('unknown Command Code endpoint: ' + endpoint)
       },
-      { authority: config.remoteManagement === true ? 'trusted-host' : 'loopback' },
-    )
-  })
-
-  ensureProviderOrderSettings(ctx)
+        ),
+        'llm-commandcode: authenticated Connection RPC',
+      )
+    })
+    return connectionFiber.dispose
+  }, 'llm-commandcode: Connection injection')
   installSettingsSection(ctx, NS, Config, config, {
     setSource: source => { current = source },
     onChange: ensureRegistration,

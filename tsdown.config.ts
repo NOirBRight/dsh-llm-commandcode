@@ -5,13 +5,15 @@ const CLIENT_EXTERNALS = [
   'react', 'react/jsx-runtime', 'react-dom', '@deepseek-ai/cordis',
   '@deepseek-ai/dsh-api-remotes/client', '@deepseek-ai/dsh-client-connection/client',
   '@deepseek-ai/dsh-client-ui-settings/client',
-  '@deepseek-ai/dsh-client-ui-layout/client', '@deepseek-ai/dsh-client-ui-slots',
+  '@deepseek-ai/dsh-client-ui-layout/client', '@deepseek-ai/dsh-client-ui-renderer/client',
+  '@deepseek-ai/dsh-client-ui-slots',
 ] as const
+const CLIENT_ALWAYS_BUNDLED = ['dsh-llm-providers-ui/sortable'] as const
 const isClientExternal = (id: string): boolean => (CLIENT_EXTERNALS as readonly string[]).includes(id)
 
 const host: UserConfig = {
   name: PACKAGE_ID,
-  entry: ['lib/types/index.js', 'lib/types/invariant.js'],
+  entry: ['lib/types/index.js'],
   outDir: 'lib', format: ['esm'], platform: 'node', target: 'es2024', fixedExtension: false,
   dts: false, clean: false,
   deps: { neverBundle: [
@@ -24,7 +26,7 @@ const host: UserConfig = {
 const client: UserConfig = {
   name: PACKAGE_ID + '/client', entry: { client: 'src/client/index.ts' }, outDir: 'lib',
   format: ['cjs'], platform: 'browser', target: 'es2024', dts: false, clean: false,
-  deps: { neverBundle: [...CLIENT_EXTERNALS], alwaysBundle: (id: string) => !isClientExternal(id) },
+  deps: { neverBundle: [...CLIENT_EXTERNALS], alwaysBundle: [...CLIENT_ALWAYS_BUNDLED] },
   plugins: [{
     name: 'dsh-client-bundle-purity',
     resolveId(source: string) {

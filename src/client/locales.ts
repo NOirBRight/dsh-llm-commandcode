@@ -88,8 +88,6 @@ export const en = {
   discoveryWarning: 'Some models have no valid context and were not made selectable: {models}',
   invalid: 'Enter positive model capacities.',
   readOnly: 'This settings profile is read-only.',
-  unavailable: 'Command Code settings are unavailable in this profile.',
-  remoteManagementDisabled: 'Remote management is disabled. For a non-loopback deployment, enable remoteManagement and restart DSH with --trusted-host <host>.',
 } as const
 
 export type CommandCodeSettingsKey = keyof typeof en
@@ -182,6 +180,4 @@ export const zh: Record<CommandCodeSettingsKey, string> = {
   discoveryWarning: '部分模型没有有效上下文，未加入可选列表：{models}',
   invalid: '请输入正数模型容量。',
   readOnly: '此 settings profile 为只读。',
-  unavailable: '此 profile 未提供 Command Code 设置。',
-  remoteManagementDisabled: '远程管理已关闭。非本机部署请启用 remoteManagement，并使用 --trusted-host <host> 重启 DSH。',
 }

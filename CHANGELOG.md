@@ -32,7 +32,7 @@
 
 - Model catalog visual parity with Codex / OpenCode: expandable rows now strictly match the official Codex / opencode-go layout — Context window on top, Vision / Reasoning / Default thinking on the bottom row, Choose from official catalog trigger, Custom catalog subtitle, shared SortableList and ModelsSection tokens, 32px inputs with chevron.
 - Reasoning catalog corrected from official CLI 1.36.0 (dist/cli.mjs BR + yr): meta/muse-spark-1.1/1.2/1.2-contributor moved from low/medium/high (wrong) to low/medium/high/xhigh (default xhigh), matching commandcode.ai model pages / Meta docs configurable reasoning effort and /model ...:xhigh. Adds muse-spark-1.1 entry.
-- Provider management hardened: Host-only credential/describe/set via COMMANDCODE_RPC_CHANNEL, hasTokenFields guard on all decoders, remoteManagement flag (loopback-only by default, trusted-host required otherwise), and separate settings-revision fencing.
+- Provider management hardened: Host-only credential/describe/set via COMMANDCODE_RPC_CHANNEL, hasTokenFields guard on all decoders, authenticated Connection trust policy, and separate settings-revision fencing.
 
 
 ## 0.1.1

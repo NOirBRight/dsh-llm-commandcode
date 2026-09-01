@@ -8,6 +8,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import * as CommandCode from '../src/index.ts'
+import { COMMANDCODE_RPC_CHANNEL } from '../src/client-contract.ts'
 import { assemble } from './assemble.ts'
 import { anthropicTextEvents, closeMockServers, mockServer, openAITextEvents } from './mock-server.ts'
 
@@ -34,7 +35,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5.6-luna' }, apiKey: string | null = 'test-key'): Promise<Context> {
+async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5.6-luna' }, apiKey: string | null = 'test-key', connection?: unknown): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-commandcode-comp-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
@@ -54,6 +55,7 @@ async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5
   ctx.provide('credentials', {
     resolve: async () => apiKey === null ? undefined : { value: apiKey },
   } as never)
+  if (connection !== undefined) ctx.provide('connection', connection as never)
   ctx.baseUrl = pathToFileURL(root).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
@@ -81,7 +83,7 @@ describe('CommandCode composition', () => {
     await expect(ctx.llm.resolveModelInfo('commandcode', 'gpt-5.6-luna')).resolves.toMatchObject({ context: { contextWindow: 1050000 }, reasoning: { defaultEffort: 'max' } })
     const result = await assemble(ctx, { model: 'gpt-5.6-luna', messages: [] })
     expect(result.finish).toEqual({ kind: 'stop' })
-    expect(result.usage).toEqual({ inputTokens: 3, outputTokens: 1 })
+    expect(result.usage).toEqual({ inputTokens: 3, outputTokens: 1, totalTokens: 4 })
     expect(server.paths).toEqual(['/provider/v1/chat/completions'])
     expect(server.requests[0]).toMatchObject({ reasoning_effort: 'max' })
     expect(server.headers[0]?.authorization).toBe('Bearer test-key')
@@ -102,6 +104,16 @@ describe('CommandCode composition', () => {
       thinking: { type: 'adaptive' },
     })
     expect(server.headers[0]?.['x-api-key']).toBe('test-key')
+  })
+
+  it('registers the management RPC through authenticated Connection and disposes it with the plugin', async () => {
+    const dispose = vi.fn(async () => undefined)
+    const handle = vi.fn((_channel: string, _handler: unknown) => dispose)
+    const ctx = await load({ id: 'gpt-5.6-luna' }, 'test-key', { rpc: { handle } })
+
+    expect(handle).toHaveBeenCalledWith(COMMANDCODE_RPC_CHANNEL, expect.any(Function))
+    await ctx.fiber.dispose()
+    expect(dispose).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the route registered and reports missing credentials at request time', async () => {

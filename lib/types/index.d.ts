@@ -27,8 +27,6 @@ export interface Config {
     zeroDataRetention?: boolean;
     usageEnabled?: boolean;
     retryPolicy?: RetryPolicyConfig;
-    /** Expose provider management to configured trusted hosts; disabled keeps loopback-only RPC. */
-    remoteManagement?: boolean;
 }
 export declare const Config: z<Config>;
 export declare function resolveAdapterOptions(config: Config): CommandCodeConnectionOptions;

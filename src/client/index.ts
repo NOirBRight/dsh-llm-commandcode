@@ -1,11 +1,13 @@
 /** Browser face for the Command Code settings and quota card. */
 
-import type { ClientContext, SettingsScope, SettingsScopeSnapshot } from './shim.js'
+import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import {
   COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
@@ -26,7 +28,6 @@ import type {
   CommandCodeSettingsView,
 } from '../client-contract.ts'
 import type { CommandCodeUsageRead } from '../types.ts'
-import { ensureProviderSection } from 'dsh-llm-providers-ui/client'
 import { CommandCodeModelPicker, CommandCodeModelPickerController } from './CommandCodeModelPicker.tsx'
 import type { CommandCodeModelPickerFace } from './CommandCodeModelPicker.tsx'
 import type { CommandCodeSettingsKey } from './locales.ts'
@@ -51,14 +52,20 @@ export const inject = ['slots', 'locale', 'connection']
 
 /** Register the Command Code card inside the shared LLM Providers section. */
 
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   const localeNamespace = 'settings.commandcode'
   ctx.effect(() => ctx.locale.register(localeNamespace, { en, zh }), 'llm-commandcode: locale')
   const t = ctx.locale.bind(localeNamespace) as CommandCodeCardFace['t']
   const picker = new CommandCodeModelPickerController()
   let snapshot: SettingsScopeSnapshot<CommandCodeSettingsView> = { status: 'loading', value: undefined, base: undefined, user: undefined, revision: undefined, writable: false, mode: 'memory' }
   const listeners = new Set<() => void>()
-  const scope: SettingsScope<CommandCodeSettingsView> = { getSnapshot: () => snapshot, subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener) } }, set: async () => undefined, unset: async () => undefined }
+  const scope: SettingsScope<CommandCodeSettingsView> = {
+    getSnapshot: () => snapshot,
+    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener) } },
+    mutate: async () => undefined,
+    set: async () => undefined,
+    unset: async () => undefined,
+  }
   const updateSnapshot = (next: SettingsScopeSnapshot<CommandCodeSettingsView>): void => { snapshot = next; listeners.forEach(listener => { listener() }) }
   const { rpc } = ctx.get('connection') as unknown as ConnectionHandle
   const callPlugin = async (endpoint: string, payload: unknown) => rpc.call(COMMANDCODE_RPC_CHANNEL, endpoint, payload)
@@ -120,7 +127,6 @@ export function apply(ctx: ClientContext): void {
     }),
   }, CommandCodeModelPicker))
 
-  ensureProviderSection(ctx)
   ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
     name: 'settings.provider.item',
     key: COMMANDCODE_SETTINGS_NAMESPACE,
@@ -139,6 +145,20 @@ export function apply(ctx: ClientContext): void {
       closeModelPicker: picker.close,
     }),
   }, CommandCodeSettingsCard))
+  ctx.effect(() => {
+    let warned = false
+    const check = (): void => {
+      const hasProvidersSection = ctx.slots.entries('settings.section').some(entry => entry.options.id === 'providers')
+      if (!hasProvidersSection && !warned) {
+        warned = true
+        console.warn(`[dsh-llm-providers-ui] LLM Providers page missing for card ${"llm-commandcode"}: install dsh-llm-providers-ui to show the card. Host route remains active.`)
+      }
+    }
+    check()
+    const dispose = ctx.slots.subscribe('settings.section', check)
+    return dispose
+  }, 'dsh-llm-providers-ui: missing owner diagnostic')
+
 }
 
 export type { CommandCodeSettingsKey }
