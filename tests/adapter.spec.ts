@@ -60,4 +60,11 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
     expect(httpErrorCode(422, { error: { code: 'cmd_zdr_no_providers' } })).toBe('ZDR_UNAVAILABLE')
     expect(httpErrorCode(429)).toBe('RATE_LIMIT')
   })
+
+  it('declares neutral imageRequestPricing for alpha hosts', () => {
+    expect(Object.hasOwn(CommandCodeAdapter.prototype, 'imageRequestPricing')).toBe(true)
+    const connection = options()
+    const adapter = new CommandCodeAdapter({ options: () => connection, resolveApiKey: async () => 'key' })
+    expect(adapter.imageRequestPricing('commandcode', 'gpt-5.6-luna')).toBeUndefined()
+  })
 })

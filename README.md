@@ -6,50 +6,48 @@ Command Code Provider API chat for DeepSeek Harness. This plugin is a separate p
 
 The package root exposes the Cordis plugin contract. The same artifact exports `./client`, which contributes the Command Code card under Settings → LLM Providers.
 
+
+## LLM Providers UI ownership
+
+The **LLM Providers** Settings page (`settings.section` `id: providers` with child `settings.provider.item`) and the shared `llm-providers` order store are owned solely by `dsh-llm-providers-ui`.
+
+- This plugin contributes only its keyed card (`key: llm-commandcode`) and its Host `llm` route; it does not install the page or the shared `llm-providers` namespace. Load order with the owner does not matter.
+- Without the owner (Headless or Web without `dsh-llm-providers-ui`): the Host model route `commandcode` still works; in Web the Providers page and this card are omitted and the browser console warns that the owner is missing. A Web release composition test rejects a bundle graph that ships provider cards without the owner.
+- The nav globe glyph is a temporary `alpha.1` DOM adapter owned only by `dsh-llm-providers-ui` (`src/client/nav-icon.ts`); this plugin does not ship that adapter.
+
+Install `dsh-llm-providers-ui` explicitly in the profile alongside provider plugins (see that package's `cordis.patch.yml`).
+
+
 ## Installation
 
-DeepSeek Harness 0.1.1-rc.2 or later is required. Install directly from GitHub:
+DeepSeek Harness `0.1.2-alpha.1` or later is required. Install directly from GitHub:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.1
+dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.16
 dsh web
 ~~~
 
 The repository tracks release-ready lib artifacts, so GitHub installation needs no build-script allowlist. A source checkout can use a link installation after running `pnpm run build`.
 
-Shared LLM Providers section owners from before this plugin need a matching patch so the Command Code card is visible on PC web:
+## Connection trust and authentication
+
+The settings, credential, discovery, and quota RPCs are registered through DSH `Connection`. Connection applies its Host/Origin trust policy and browser authentication before dispatching an RPC; this plugin has no provider-specific switch that can weaken those checks.
+
+For non-loopback access, start DSH Web with every required browser host explicitly trusted, complete the Connection browser-authentication flow, and use the authenticated session:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-cursor#v0.2.7
-dsh plugin --profile web add github:NOirBRight/dsh-llm-grok#v0.3.1
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.1
-dsh plugin --profile web add github:NOirBRight/dsh-llm-ollama#v0.6.8
+dsh web --trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top
 ~~~
 
-## Remote management
+The trusted-host list only establishes the Host/Origin policy; it does not grant unauthenticated access. If remote exposure is not desired, use an SSH tunnel and open the loopback address:
 
-By default the plugin's settings RPC is loopback-only. When you open DSH from a non-loopback host (e.g. https://dsh.noirbright.top or http://192.168.50.75:3080), the card shows “A remote browser cannot edit plugin settings”.
-
-To allow editing from a trusted host:
-
-1. Add to your profile patch (`~/.dsh/profiles/web/cordis.patch.yml` for production, `~/.dsh-lab/profiles/web/cordis.patch.yml` for lab):
-   ```yaml
-   - id: llm-commandcode
-     config:
-       remoteManagement: true
-   ```
-2. Restart DSH with the host allowlisted:
-   ```sh
-   dsh web --trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top
-   ```
-   The current production launch already uses `--trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top`; add any additional host you use.
-3. Refresh the browser. Settings saved on the host keep working for remote sessions.
-
-Without `remoteManagement: true`, use `ssh -L 3080:127.0.0.1:3080 user@host` and open `http://127.0.0.1:3080`.
+~~~sh
+ssh -L 3080:127.0.0.1:3080 user@host
+~~~
 
 ## Web configuration
 
-Open Settings → LLM Providers → Command Code. If this is the first provider plugin, it creates that left-nav section; otherwise it joins the existing one. The card stores the API key through the DSH credentials service under `COMMANDCODE_API_KEY` (set `apiKeyEnv` to `CMD_API_KEY` if needed). The Host never returns the stored literal.
+Install `dsh-llm-providers-ui` alongside this plugin, then open Settings → LLM Providers → Command Code. This plugin contributes the keyed card; the owner supplies the page, navigation, and shared order store. Without the owner, the Host route still works but the Web page and card are absent, with a console diagnostic. The card stores the API key through the DSH credentials service under `COMMANDCODE_API_KEY` (set `apiKeyEnv` to `CMD_API_KEY` if needed). The Host never returns the stored literal.
 
 The only visible Provider API URL is the fixed, read-only official `https://api.commandcode.ai/provider/v1`. Discovery is a public GET and carries neither an endpoint nor a key. Quota uses the same official origin on the Host; the custom browser RPC never carries the secret.
 
@@ -71,7 +69,6 @@ Cordis config (the card writes the same fields):
         apiKeyEnv: COMMANDCODE_API_KEY
         usageEnabled: true
         zeroDataRetention: false
-        remoteManagement: false
 
 ## Chat protocol
 
@@ -82,11 +79,11 @@ The protocol is fixed by model id, not a user toggle:
 
 Serialization, SSE, tools, attachments, and reasoning go through DSH `PiAiAdapter`. There is no vision toggle on the card; image-capable models keep the modalities they advertised.
 
-## External-auth / remote management
+## Credential handling
 
-API keys are entered in the browser but stored only by the Host credentials service; the provider RPC exposes only `{ configured, writable }`, never the value. Settings reads, saves, model discovery, usage, and credential writes use the provider management RPC. Settings revision fencing and credential storage are separate operations and are not falsely presented as one atomic transaction.
+API keys are entered in the browser but stored only by the Host credentials service; the provider RPC exposes only `{ configured, writable }`, never the value. Settings reads, saves, model discovery, usage, and credential writes use the provider management RPC.
 
-For a non-loopback deployment, set `remoteManagement: true`, restart DSH, and start it with the browser authority explicitly trusted (for example `dsh web --trusted-host app.example.com`). Keep it `false` for loopback-only operation; if disabled remotely, the card explains that trusted-host access plus a restart is required.
+The authenticated Connection session protects these management operations. Settings revision fencing and credential storage are separate operations and are not falsely presented as one atomic transaction.
 
 ## Account quota
 
@@ -98,9 +95,59 @@ The card shows the account name, plan, monthly / purchased / free credits, 5-hou
 
 ~~~sh
 pnpm test
+pnpm run typecheck
 pnpm run build
 pnpm run pack:check
 pnpm run lab:check   # existing lab GUI on 127.0.0.1:3082
 ~~~
 
 Provider API documentation: https://commandcode.ai/docs/provider
+
+
+## Release installation (Latest)
+
+Command Code Provider API chat, model discovery, credentials, and quota reporting. The release artifact targets DeepSeek Harness 0.1.2-alpha.1 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
+
+The dsh-llm-providers-ui package owns the LLM Providers page, navigation, and shared order store. This package owns only its provider card, models, credentials, and Host route. Install the Owner first for Web; headless Host routing works without the Owner.
+
+Owner (Latest):
+
+~~~sh
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui.tgz
+~~~
+
+Provider (Latest):
+
+~~~sh
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode.tgz
+~~~
+
+Fixed versions (reproducible):
+
+~~~sh
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.2/dsh-llm-providers-ui.tgz
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.16/dsh-llm-commandcode.tgz
+~~~
+
+Update, uninstall, and verify:
+
+~~~sh
+# Update to the latest Release
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode.tgz
+# Verify the loaded version
+dsh plugin --profile web list
+dsh plugin --profile web doctor
+# Uninstall only this plugin
+dsh plugin --profile web remove dsh-llm-commandcode
+~~~
+
+Configuration: use the plugin section in Settings for Web UI plugins, or the profile dsh.profile.bundles entry for Host-only plugins. Start with this README's minimal YAML/JSON example and provide credentials/backend addresses explicitly.
+
+Rollback: rerun the fixed v0.1.16 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
+
+Release and integrity: [v0.1.16](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.16) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.16/SHA256SUMS).

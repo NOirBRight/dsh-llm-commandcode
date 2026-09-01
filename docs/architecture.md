@@ -8,7 +8,7 @@ The public CommandCodeAdapter is a thin provider-specific wrapper over DSH's PiA
 
 The single user-facing Provider API URL is fixed and read-only at https://api.commandcode.ai/provider/v1. OpenAI models use it directly; the profile strips the trailing /v1 for Anthropic SDK models because that SDK appends /v1/messages. Both therefore reach the documented Command Code paths without exposing two settings.
 
-The client follows the provider-plugin convention: it claims the shared settings.provider.item slot and calls ensureProviderSection. A standalone install creates the providers settings section and left navigation row; when another provider already owns that row, Command Code only contributes its keyed card. Existing local provider bundles include llm-commandcode in their shared display order so the first owner still renders it.
+The client contributes only the keyed `settings.provider.item` entry with key `llm-commandcode`. `dsh-llm-providers-ui` owns the `settings.section` entry with id `providers`, its navigation row, and the `llm-providers` order namespace. Command Code observes the public slot registry for a missing-owner diagnostic; it never creates or orders the shared page. The Host route does not depend on the Web owner.
 
 ## Context source
 

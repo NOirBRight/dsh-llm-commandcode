@@ -225,7 +225,7 @@ const outlineButtonStyle: CSSProperties = {
 /** Render the CommandCode model candidate picker in the frame overlay layer. */
 export function CommandCodeModelPicker(props: CommandCodeModelPickerProps): ReactNode {
   const { t } = props
-  const snapshot = props.useCommandCodeModelPicker(value => value)
+  const snapshot = props.useCommandCodeModelPicker((value: CommandCodeModelPickerSnapshot) => value)
   useEffect(() => {
     if (!snapshot.open) return
     const onKeyDown = (event: KeyboardEvent): void => {

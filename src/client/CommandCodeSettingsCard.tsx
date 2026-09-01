@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { SettingsScope } from './shim.js'
+import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   CommandCodeDiscoveryRequest,
@@ -13,10 +13,9 @@ import type {
 import { PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
-import './provider-section.ts'
 import { BrandMark } from './BrandMark.tsx'
 import { ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerHeaderStyle } from './provider-chrome.tsx'
-import { SortableList } from './SortableList.tsx'
+import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
 import {
   ModelCatalogFields,
@@ -307,7 +306,7 @@ function patchedModel(model: ModelDraft, patch: ModelPatch): ModelDraft {
 /** Standard collapsible provider card. */
 export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): ReactNode {
   const { t } = props
-  const snapshot = props.useCommandCodeSettings(value => value)
+  const snapshot = props.useCommandCodeSettings((value: SettingsScopeSnapshot<CommandCodeSettingsView>) => value)
   const initial = useMemo(() => snapshot.value === undefined ? undefined : draftOf(snapshot.value), [snapshot.value])
   const [open, setOpen] = useState(false)
   const [source, setSource] = useState<Draft | undefined>(initial)
@@ -387,9 +386,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
     finally { setBusy(false) }
   }
 
-  if (snapshot.status === 'unavailable' || draft === undefined) {
-    return <li style={cardStyle}><button type="button" style={providerHeaderStyle} aria-expanded={false} disabled><ProviderCardHeader title={t('title')} mark={<BrandMark />} summary={formatProviderSummary(t('notConfigured'), '0 ' + t('models'))} open={false} /></button><p style={statusStyle}>{t('remoteManagementDisabled')}</p></li>
-  }
+  if (snapshot.status !== 'ready' || draft === undefined) return null
 
   const title = t('title')
   const summary = formatProviderSummary(credential?.configured === true ? t('configured') : t('notConfigured'), interpolate(t('modelCount'), { count: draft.models.length }))

@@ -87,8 +87,6 @@ export declare const en: {
     readonly discoveryWarning: "Some models have no valid context and were not made selectable: {models}";
     readonly invalid: "Enter positive model capacities.";
     readonly readOnly: "This settings profile is read-only.";
-    readonly unavailable: "Command Code settings are unavailable in this profile.";
-    readonly remoteManagementDisabled: "Remote management is disabled. For a non-loopback deployment, enable remoteManagement and restart DSH with --trusted-host <host>.";
 };
 export type CommandCodeSettingsKey = keyof typeof en;
 export declare const zh: Record<CommandCodeSettingsKey, string>;

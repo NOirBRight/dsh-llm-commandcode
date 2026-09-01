@@ -56,6 +56,85 @@ function classifyCommandCodeError(chunk: StreamChunk): StreamChunk {
   return { ...chunk, reason: { ...chunk.reason, failure: { ...chunk.reason.failure, code } } }
 }
 
+const SANDBOX_MODE_RANK: Record<string, number> = {
+  'read-only': 0,
+  'workspace-write': 1,
+  'danger-full-access': 2,
+}
+
+/**
+ * Remove sandbox escalation choices that cannot be strictly wider than the
+ * current DSH policy. Core still validates every retained request; this only
+ * prevents Codex from selecting an impossible optional enum value.
+ */
+export function narrowCommandCodeEscalationSchemas(options: GenerateOptions): GenerateOptions {
+  const mode = sandboxModeOf(options)
+  const currentRank = mode === undefined ? undefined : SANDBOX_MODE_RANK[mode]
+  if (currentRank === undefined || options.tools === undefined) return options
+  let changed = false
+  const tools = options.tools.map((tool) => {
+    const parameters = tool.parameters
+    const properties = isRecord(parameters.properties) ? parameters.properties : undefined
+    const permission = properties === undefined || !isRecord(properties.sandbox_permissions)
+      ? undefined
+      : properties.sandbox_permissions
+    if (permission === undefined || !Array.isArray(permission.enum)) return tool
+    const wider = permission.enum.filter((candidate): candidate is string => {
+      return typeof candidate === 'string' && (SANDBOX_MODE_RANK[candidate] ?? -1) > currentRank
+    })
+    if (wider.length === permission.enum.length) return tool
+    changed = true
+    const nextProperties = { ...properties }
+    if (wider.length === 0) {
+      delete nextProperties.sandbox_permissions
+      delete nextProperties.justification
+    } else {
+      nextProperties.sandbox_permissions = { ...permission, enum: wider }
+    }
+    const required = Array.isArray(parameters.required)
+      ? parameters.required.filter(name => name !== 'sandbox_permissions' && name !== 'justification')
+      : undefined
+    return {
+      ...tool,
+      parameters: {
+        ...parameters,
+        properties: nextProperties,
+        ...(required === undefined ? {} : { required }),
+      },
+    }
+  })
+  return changed ? { ...options, tools } : options
+}
+
+function sandboxModeOf(options: GenerateOptions): string | undefined {
+  for (let index = options.messages.length - 1; index >= 0; index -= 1) {
+    const message = options.messages[index]
+    if (!isRecord(message)) continue
+    const found = sandboxModeIn(message.content)
+    if (found !== undefined) return found
+  }
+  return sandboxModeIn(options.system)
+}
+
+function sandboxModeIn(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return /Current DSH file policy:\s*(read-only|workspace-write|danger-full-access)\./u.exec(value)?.[1]
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = sandboxModeIn(item)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+  if (!isRecord(value)) return undefined
+  return sandboxModeIn(value.text) ?? sandboxModeIn(value.content)
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 /** One DSH provider route backed by a pi-ai provider with per-model api dispatch. */
 export class CommandCodeAdapter extends LlmAdapter {
   private readonly auth = createCommandCodePiAiAuth()
@@ -88,6 +167,16 @@ export class CommandCodeAdapter extends LlmAdapter {
     return this.current().providerRetryPolicy(provider)
   }
 
+  /**
+   * Declare neutral request-image pricing so the Host uses heuristic image pricing.
+   * @param _provider - provider route.
+   * @param _model - model id.
+   * @returns `undefined` so the Host uses heuristic image pricing.
+   */
+  override imageRequestPricing(_provider: string, _model: string): undefined {
+    return undefined
+  }
+
   override listModels(provider: string): Promise<readonly LlmModelInfo[]> {
     return this.current().listModels(provider)
   }
@@ -99,7 +188,7 @@ export class CommandCodeAdapter extends LlmAdapter {
   }
 
   override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    for await (const chunk of this.current().stream(options)) yield classifyCommandCodeError(chunk)
+    for await (const chunk of this.current().stream(narrowCommandCodeEscalationSchemas(options))) yield classifyCommandCodeError(chunk)
   }
 
   override async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall> {
@@ -109,7 +198,7 @@ export class CommandCodeAdapter extends LlmAdapter {
     return {
       model: configured === undefined ? prepared.model : applyCommandCodeReasoningMetadata(prepared.model, configured),
       stream: async function* (options: GenerateOptions) {
-        for await (const chunk of prepared.stream(options)) yield classifyCommandCodeError(chunk)
+        for await (const chunk of prepared.stream(narrowCommandCodeEscalationSchemas(options))) yield classifyCommandCodeError(chunk)
       },
     }
   }

@@ -8,7 +8,7 @@
 
 用户只能看到固定只读的官方 Provider API 地址 https://api.commandcode.ai/provider/v1。OpenAI 模型直接使用；Anthropic SDK 固定追加 /v1/messages，因此 profile 会在内部去掉末尾 /v1，两者最终都命中文档规定的 Command Code 路径。
 
-Client 遵循 provider 插件约定：注册共享的 settings.provider.item，并调用 ensureProviderSection。单独安装时创建左侧 LLM Providers 入口；已有其他 provider 占用该入口时，只加入自己的 keyed card。现有本地 provider bundle 的共享顺序也包含 llm-commandcode，确保先加载的 section 仍会渲染它。
+Client 只向 `settings.provider.item` 注册 key 为 `llm-commandcode` 的 keyed entry。`dsh-llm-providers-ui` 独占 `id: providers` 的 `settings.section`、导航行和 `llm-providers` 排序命名空间。Command Code 通过公开 slot registry 观察 owner 缺失并输出诊断；不会创建或排序共享页面。Host 路由不依赖 Web owner。
 
 ## 上下文来源
 
