@@ -6,7 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
@@ -91,7 +91,7 @@ export type {
 export const name = 'llm-commandcode'
 export const inject = ['llm']
 
-const NS = settingsNamespace(COMMANDCODE_SETTINGS_NAMESPACE)
+const NS = COMMANDCODE_SETTINGS_NAMESPACE
 const DEFAULT_RETRY_POLICY: RetryPolicyConfig = { mode: 'normal', maxRetries: 3 }
 
 /** No fabricated startup capacities: a model enters the route only after live discovery or explicit config. */
@@ -334,10 +334,12 @@ export function apply(ctx: Context, config: Config): void {
     })
     return connectionFiber.dispose
   }, 'llm-commandcode: Connection injection')
-  installSettingsSection(ctx, NS, Config, config, {
-    setSource: source => { current = source },
-    onChange: ensureRegistration,
-    validate: value => { resolveAdapterOptions(value) },
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, NS, Config, config, {
+      setSource: source => { current = source },
+      onChange: ensureRegistration,
+      validate: value => { resolveAdapterOptions(value) },
+    })
   })
 }
 

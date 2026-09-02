@@ -8,10 +8,10 @@ DeepSeek Harness 的 Command Code Provider API 插件。独立 provider 路由�
 
 ## 安装
 
-需要 DeepSeek Harness `0.1.2-alpha.1` 或更新版本。直接从 GitHub 安装：
+需要 DeepSeek Harness `0.1.2-alpha.4`。直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.16
+dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.17
 dsh web
 ~~~
 
@@ -97,14 +97,14 @@ Provider API 文档：https://commandcode.ai/docs/provider
 
 - 本插件仅贡献自己的卡片（`key: llm-commandcode`）和 Host 上的 `llm` 路由；不安装页面或共享命名空间。加载顺序不影响归属。
 - 未安装 owner 时（Headless 或 Web 未装 `dsh-llm-providers-ui`）：Host 侧模型路由 `commandcode` 仍可工作；Web 侧 Providers 页面与本卡片不显示，并在浏览器控制台提示缺少 owner。正式 Web 发版的组合测试会拒绝缺少 owner 的图。
-- 导航地球图标为 `alpha.1` 临时 DOM 适配器，仅由 `dsh-llm-providers-ui` 持有；本插件不含该适配。
+- 导航地球图标为 Alpha.4 临时 DOM 适配器，仅由 `dsh-llm-providers-ui` 持有；本插件不含该适配。
 
 请在 profile 中与 provider 插件一起显式安装 `dsh-llm-providers-ui`（见其 `cordis.patch.yml`）。
 
 
 ## 正式版安装（Latest）
 
-Command Code Provider API chat, model discovery, credentials, and quota reporting. 正式成品只支持 DeepSeek Harness 0.1.2-alpha.1；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
+Command Code Provider API chat, model discovery, credentials, and quota reporting. 正式成品只支持 DeepSeek Harness 0.1.2-alpha.4；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
 
 LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
 
@@ -148,4 +148,4 @@ dsh plugin --profile web remove dsh-llm-commandcode
 
 回滚：重新执行固定版本 v0.1.16 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.1.16](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.16) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.16/SHA256SUMS)。
+Release 与完整性：[v0.1.17](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.17) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.17/SHA256SUMS)。

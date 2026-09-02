@@ -6,6 +6,8 @@ Command Code Provider API chat for DeepSeek Harness. This plugin is a separate p
 
 The package root exposes the Cordis plugin contract. The same artifact exports `./client`, which contributes the Command Code card under Settings → LLM Providers.
 
+Compatibility: this release requires DeepSeek Harness `0.1.2-alpha.4` and `@deepseek-ai/cordis@4.0.2`; it is not compatible with Alpha.1–Alpha.3. Users on older runtimes must keep the last plugin tag built for that runtime.
+
 
 ## LLM Providers UI ownership
 
@@ -13,17 +15,17 @@ The **LLM Providers** Settings page (`settings.section` `id: providers` with chi
 
 - This plugin contributes only its keyed card (`key: llm-commandcode`) and its Host `llm` route; it does not install the page or the shared `llm-providers` namespace. Load order with the owner does not matter.
 - Without the owner (Headless or Web without `dsh-llm-providers-ui`): the Host model route `commandcode` still works; in Web the Providers page and this card are omitted and the browser console warns that the owner is missing. A Web release composition test rejects a bundle graph that ships provider cards without the owner.
-- The nav globe glyph is a temporary `alpha.1` DOM adapter owned only by `dsh-llm-providers-ui` (`src/client/nav-icon.ts`); this plugin does not ship that adapter.
+- The nav globe glyph is a temporary Alpha.4 DOM adapter owned only by `dsh-llm-providers-ui` (`src/client/nav-icon.ts`); this plugin does not ship that adapter.
 
 Install `dsh-llm-providers-ui` explicitly in the profile alongside provider plugins (see that package's `cordis.patch.yml`).
 
 
 ## Installation
 
-DeepSeek Harness `0.1.2-alpha.1` or later is required. Install directly from GitHub:
+DeepSeek Harness `0.1.2-alpha.4` is required. Install directly from GitHub:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.16
+dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.17
 dsh web
 ~~~
 
@@ -106,7 +108,7 @@ Provider API documentation: https://commandcode.ai/docs/provider
 
 ## Release installation (Latest)
 
-Command Code Provider API chat, model discovery, credentials, and quota reporting. The release artifact targets DeepSeek Harness 0.1.2-alpha.1 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
+Command Code Provider API chat, model discovery, credentials, and quota reporting. The release artifact targets DeepSeek Harness 0.1.2-alpha.4 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
 
 The dsh-llm-providers-ui package owns the LLM Providers page, navigation, and shared order store. This package owns only its provider card, models, credentials, and Host route. Install the Owner first for Web; headless Host routing works without the Owner.
 
@@ -150,4 +152,4 @@ Configuration: use the plugin section in Settings for Web UI plugins, or the pro
 
 Rollback: rerun the fixed v0.1.16 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.1.16](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.16) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.16/SHA256SUMS).
+Release and integrity: [v0.1.17](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.17) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.17/SHA256SUMS).
