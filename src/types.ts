@@ -7,6 +7,7 @@ import type {
   ModelModality,
   ResolvedRetryPolicy,
 } from '@deepseek-ai/dsh-llm'
+import { inputModalitiesForCommandCodeModel } from './capability-catalog.ts'
 
 /** Wire protocol selected for one Command Code model. */
 export type CommandCodeApi = 'openai-completions' | 'anthropic-messages'
@@ -116,7 +117,7 @@ export function modelInfo(provider: string, model: CommandCodeModelConfig): LlmM
     id: model.id,
     name: model.name ?? model.id,
     ...(model.description === undefined ? {} : { description: model.description }),
-    inputModalities: model.inputModalities === undefined ? ['text'] : [...model.inputModalities],
+    inputModalities: model.inputModalities === undefined ? inputModalitiesForCommandCodeModel(model.id) : [...model.inputModalities],
   }
 }
 

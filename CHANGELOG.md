@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.18 - 2026-09-03
+
+- Add Fable 5.1, DeepSeek V4 Flash Fast, Qwen 3.8, LongCat 2.0, Hy4 Preview, Gemini 3.8 Flash, and Muse Spark 1.3 models from the live Provider API and `command-code@1.44.0` capability catalog.
+- Correct current model context and vision metadata while preserving explicit names, context overrides, and existing GPT/Grok effort tables and defaults.
+- Configure both Muse Spark 1.3 routes for `low/medium/high/xhigh/max` with default `max`; retain native LongCat reasoning without inventing an effort selector.
+
 ## 0.1.15
 
 - Settings → LLM Providers: drag cards to reorder; chat picker follows `llm-providers.order` via dsh-llm-providers-ui.

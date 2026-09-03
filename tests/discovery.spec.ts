@@ -32,6 +32,29 @@ describe('Command Code model discovery', () => {
     expect(protocolForModel('gpt-5.6-luna')).toBe('openai-completions')
   })
 
+  it('projects official image capabilities and native reasoning for current ids', () => {
+    const result = parseCommandCodeModels({
+      data: [
+        { id: 'gpt-5.6-sol', context_length: 1_050_000 },
+        { id: 'xai/grok-4.6', context_length: 500_000 },
+        { id: 'z-ai/glm-5.3-flash', context_length: 1_048_576 },
+        { id: 'deepseek/deepseek-v4-flash-vision-exp', context_length: 1_000_000 },
+        { id: 'Qwen/Qwen3.8-Max-0902', context_length: 1_000_000 },
+        { id: 'meituan/LongCat-2.0:free', context_length: 1_048_576 },
+        { id: 'zai-org/GLM-5.2-Fast', context_length: 1_000_000 },
+      ],
+    })
+    expect(result.models).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'gpt-5.6-sol', inputModalities: ['text', 'image'] }),
+      expect.objectContaining({ id: 'xai/grok-4.6', inputModalities: ['text'] }),
+      expect.objectContaining({ id: 'z-ai/glm-5.3-flash', inputModalities: ['text', 'image'] }),
+      expect.objectContaining({ id: 'deepseek/deepseek-v4-flash-vision-exp', inputModalities: ['text', 'image'] }),
+      expect.objectContaining({ id: 'Qwen/Qwen3.8-Max-0902', inputModalities: ['text', 'image'] }),
+      expect.objectContaining({ id: 'meituan/LongCat-2.0:free', inputModalities: ['text'], thinking: true }),
+      expect.objectContaining({ id: 'zai-org/GLM-5.2-Fast', inputModalities: ['text'] }),
+    ]))
+  })
+
   it('fetches the public listing without transporting a credential', async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('https://api.commandcode.ai/provider/v1/models')

@@ -106,6 +106,19 @@ describe('CommandCode composition', () => {
     expect(server.headers[0]?.['x-api-key']).toBe('test-key')
   })
 
+  it('serializes Muse Spark 1.3 contributor max as reasoning_effort', async () => {
+    const server = await mockServer([{ kind: 'sse', events: openAITextEvents }])
+    redirectOfficialRequests(server.url)
+    const ctx = await load({ id: 'meta/muse-spark-1.3-contributor', defaultEffort: 'max' })
+    const result = await assemble(ctx, { model: 'meta/muse-spark-1.3-contributor', messages: [] })
+    expect(result.finish).toEqual({ kind: 'stop' })
+    expect(server.paths).toEqual(['/provider/v1/chat/completions'])
+    expect(server.requests[0]).toMatchObject({
+      model: 'meta/muse-spark-1.3-contributor',
+      reasoning_effort: 'max',
+    })
+  })
+
   it('registers the management RPC through authenticated Connection and disposes it with the plugin', async () => {
     const dispose = vi.fn(async () => undefined)
     const handle = vi.fn((_channel: string, _handler: unknown) => dispose)

@@ -11,7 +11,7 @@ DeepSeek Harness 的 Command Code Provider API 插件。独立 provider 路由�
 需要 DeepSeek Harness `0.1.2-alpha.4`。直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.17
+dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.18
 dsh web
 ~~~
 
@@ -43,7 +43,7 @@ ssh -L 3080:127.0.0.1:3080 user@host
 
 ![Command Code 连接、可选 ZDR 与账户额度](docs/images/plugin-card.png)
 
-目录默认折叠。**Fetch models** 打开按 Go / Pro / Provider+ 分组的 overlay，勾选后再加入。每一行可展开上下文、最大输出和官方 effort；拖动排序，垃圾桶删除。保存的默认值：GLM-5.3 Flash 和所有 DeepSeek 用 `max`；Muse 用已发布的最高档；GPT 对齐本地 Codex（Sol `high`、Terra `xhigh`、Luna `max`，其余 GPT 优先 `xhigh`，非法档位回退）。有效的已存覆盖优先。
+目录默认折叠。**Fetch models** 打开按 Go / Pro / Provider+ 分组的 overlay，勾选后再加入。每一行可展开上下文、最大输出和官方 effort；拖动排序，垃圾桶删除。能力覆盖以实时 Provider API 和 2026-09-03 的 `command-code@1.44.0` 已发布模型目录快照为来源。保存的默认值：GLM-5.3 Flash 和所有 DeepSeek 用 `max`；Fable 5.1 用 `high`；新增 Qwen、Hy4、Gemini 使用各自最高档；Muse Spark 1.3 按前瞻策略用 `max`；GPT 对齐本地 Codex（Sol `high`、Terra `xhigh`、Luna `max`，其余 GPT 优先 `xhigh`，非法档位回退）。没有可选等级的模型（例如 LongCat 2.0）保留 provider 原生 reasoning，不伪造选择器。有效的已存覆盖优先。
 
 ![可排序的 Command Code 模型目录与官方 effort 选项](docs/images/model-catalog.png)
 
@@ -128,7 +128,7 @@ dsh plugin --profile web add --force \
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.2/dsh-llm-providers-ui.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.16/dsh-llm-commandcode.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
 ~~~
 
 更新、卸载与验证：
@@ -146,6 +146,6 @@ dsh plugin --profile web remove dsh-llm-commandcode
 
 配置入口：Web 使用「设置」中的本插件页面；Host-only 插件使用 profile 的 dsh.profile.bundles 配置。先复制本 README 的最小 YAML/JSON 示例，再填写凭据或后端地址。
 
-回滚：重新执行固定版本 v0.1.16 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
+回滚：重新执行固定版本 v0.1.17 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.1.17](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.17) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.17/SHA256SUMS)。
+Release 与完整性：[v0.1.18](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.18) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/SHA256SUMS)。

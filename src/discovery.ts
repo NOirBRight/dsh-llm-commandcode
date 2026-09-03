@@ -6,6 +6,7 @@ import { effectiveApi } from './types.ts'
 import type { CommandCodeModelConfig } from './types.ts'
 import { readBoundedText } from './http.ts'
 import { defaultEffortForCommandCodeModel } from './reasoning-catalog.ts'
+import { hasNativeReasoningByDefault, inputModalitiesForCommandCodeModel } from './capability-catalog.ts'
 import { positiveInteger } from './numbers.ts'
 import { PUBLIC_PROVIDER_BASE_URL } from './client-contract.ts'
 
@@ -59,7 +60,8 @@ export function parseCommandCodeModels(value: unknown): { models: CommandCodeMod
       ...(contextWindow === undefined ? {} : { contextWindow }),
       ...(maxTokens === undefined ? {} : { maxTokens }),
       ...(defaultEffort === undefined ? {} : { defaultEffort }),
-      inputModalities: ['text'],
+      ...(hasNativeReasoningByDefault(id) ? { thinking: true } : {}),
+      inputModalities: inputModalitiesForCommandCodeModel(id),
     })
   }
   return { models, warnings }

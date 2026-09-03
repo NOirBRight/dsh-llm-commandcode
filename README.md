@@ -25,7 +25,7 @@ Install `dsh-llm-providers-ui` explicitly in the profile alongside provider plug
 DeepSeek Harness `0.1.2-alpha.4` is required. Install directly from GitHub:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.17
+dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.18
 dsh web
 ~~~
 
@@ -57,7 +57,7 @@ The only visible Provider API URL is the fixed, read-only official `https://api.
 
 ![Command Code connection, optional ZDR, and account quota](docs/images/plugin-card.png)
 
-The catalog starts collapsed. **Fetch models** opens an overlay grouped by Go / Pro / Provider+ access, then adds the selection. Each row can expand for context, max output, and official effort options; drag reorders, trash removes. Saved defaults: GLM-5.3 Flash and all DeepSeek models use `max`; Muse uses its highest published level; GPT follows the local Codex policy (Sol `high`, Terra `xhigh`, Luna `max`, other GPT prefer `xhigh` with a valid-level fallback). A saved valid override wins.
+The catalog starts collapsed. **Fetch models** opens an overlay grouped by Go / Pro / Provider+ access, then adds the selection. Each row can expand for context, max output, and official effort options; drag reorders, trash removes. The capability overlay is sourced from the live Provider API plus the 2026-09-03 snapshot of the published `command-code@1.44.0` model registry. Saved defaults: GLM-5.3 Flash and all DeepSeek models use `max`; Fable 5.1 uses `high`; the new Qwen, Hy4, and Gemini entries use their highest listed level; Muse Spark 1.3 uses the forward `max` level; GPT follows the local Codex policy (Sol `high`, Terra `xhigh`, Luna `max`, other GPT prefer `xhigh` with a valid-level fallback). A saved valid override wins. Models without selectable efforts, such as LongCat 2.0, keep provider-native reasoning without a fabricated selector.
 
 ![Sortable Command Code model catalog with official effort options](docs/images/model-catalog.png)
 
@@ -132,7 +132,7 @@ Fixed versions (reproducible):
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.2/dsh-llm-providers-ui.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.16/dsh-llm-commandcode.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
 ~~~
 
 Update, uninstall, and verify:
@@ -150,6 +150,6 @@ dsh plugin --profile web remove dsh-llm-commandcode
 
 Configuration: use the plugin section in Settings for Web UI plugins, or the profile dsh.profile.bundles entry for Host-only plugins. Start with this README's minimal YAML/JSON example and provide credentials/backend addresses explicitly.
 
-Rollback: rerun the fixed v0.1.16 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
+Rollback: rerun the fixed v0.1.17 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.1.17](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.17) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.17/SHA256SUMS).
+Release and integrity: [v0.1.18](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.18) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/SHA256SUMS).

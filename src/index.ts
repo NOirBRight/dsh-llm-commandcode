@@ -37,6 +37,7 @@ import type { CommandCodeConnectionOptions, CommandCodeModelConfig } from './typ
 import { discoverModels } from './discovery.ts'
 import { readCommandCodeUsage } from './usage.ts'
 import { defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from './reasoning-catalog.ts'
+import { inputModalitiesForCommandCodeModel } from './capability-catalog.ts'
 import { isPositiveInteger } from './numbers.ts'
 
 export {
@@ -107,7 +108,7 @@ const catalogModel: z<CommandCodeModelConfig> = z.object({
   maxTokens: z.number().step(1).min(1),
   thinking: z.boolean(),
   defaultEffort: z.string(),
-  inputModalities: z.array(z.union(MODEL_MODALITIES)).default(['text']),
+  inputModalities: z.array(z.union(MODEL_MODALITIES)),
 })
 
 export interface Config {
@@ -153,7 +154,11 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
     const effectiveThinking = model.thinking ?? (hasEfforts ? undefined : undefined)
     if (normalizedEffort !== undefined && !efforts.includes(normalizedEffort)) throw new Error('llm-commandcode: defaultEffort is not offered for ' + model.id)
     const defaultEffort = model.thinking === false ? undefined : defaultEffortForCommandCodeModel(effortModel)
-    const input = model.inputModalities === undefined || model.inputModalities.length === 0 ? ['text'] as const : model.inputModalities
+    const input = model.inputModalities === undefined
+      ? inputModalitiesForCommandCodeModel(model.id)
+      : model.inputModalities.length === 0
+        ? ['text'] as const
+        : model.inputModalities
     if (new Set(input).size !== input.length || input.some(item => !MODEL_MODALITIES.includes(item))) throw new Error('llm-commandcode: invalid inputModalities for ' + model.id)
     // When thinking is explicitly false, ensure no stale effort is persisted.
     const persistedEffort = model.thinking === false ? undefined : defaultEffort

@@ -9,6 +9,7 @@ import { COMMANDCODE_PROVIDER } from './client-contract.ts'
 import type { CommandCodeConnectionOptions, CommandCodeModelConfig } from './types.ts'
 import { effectiveApi, effectiveContext } from './types.ts'
 import { effortsForCommandCodeModel } from './reasoning-catalog.ts'
+import { inputModalitiesForCommandCodeModel } from './capability-catalog.ts'
 
 const NO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 const DEFAULT_MAX_REQUEST_IMAGE_BYTES = 20 * 1024 * 1024
@@ -54,7 +55,7 @@ export function toCommandCodePiAiModel(
     baseUrl: api === 'anthropic-messages' ? anthropicBaseURL(connection.providerBaseURL) : connection.providerBaseURL,
     reasoning,
     ...(levels === undefined ? {} : { thinkingLevelMap: levels }),
-    input: model.inputModalities === undefined ? ['text'] : [...model.inputModalities],
+    input: model.inputModalities === undefined ? inputModalitiesForCommandCodeModel(model.id) : [...model.inputModalities],
     cost: NO_COST,
     contextWindow: effectiveContext(model, connection.defaultContextWindow),
     maxTokens: model.maxTokens ?? connection.defaultMaxTokens,

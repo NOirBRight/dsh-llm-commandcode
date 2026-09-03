@@ -1,4 +1,4 @@
-/** Browser-safe effort catalog extracted from official command-code@1.36.0. */
+/** Browser-safe effort catalog extracted from official command-code@1.44.0. */
 import type { CommandCodeModelConfig } from './types.ts';
 /** Return a valid explicit default; every model with efforts gets one. */
 export declare function defaultEffortForCommandCodeModel(model: Pick<CommandCodeModelConfig, 'id' | 'defaultEffort'>): string | undefined;

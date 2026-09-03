@@ -50,6 +50,27 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
     })
   })
 
+  it('projects official modalities and new-model effort metadata', () => {
+    const connection = resolveAdapterOptions({
+      apiKeyEnv: 'COMMANDCODE_API_KEY',
+      models: [
+        { id: 'Qwen/Qwen3.8-Max-0902', contextWindow: 1_000_000 },
+        { id: 'meta/muse-spark-1.3-contributor', contextWindow: 1_048_576 },
+        { id: 'meituan/LongCat-2.0:free', contextWindow: 1_048_576, thinking: true },
+      ],
+    })
+    const models = createCommandCodePiAiProfile(connection).piProvider.getModels()
+    expect(models.find(model => model.id === 'Qwen/Qwen3.8-Max-0902')).toMatchObject({
+      input: ['text', 'image'],
+      thinkingLevelMap: { low: 'low', medium: 'medium', xhigh: 'xhigh' },
+    })
+    expect(models.find(model => model.id === 'meta/muse-spark-1.3-contributor')).toMatchObject({
+      input: ['text', 'image'],
+      thinkingLevelMap: { max: 'max' },
+    })
+    expect(models.find(model => model.id === 'meituan/LongCat-2.0:free')).toMatchObject({ reasoning: false, input: ['text'] })
+  })
+
   it('has no configurable provider endpoint surface', () => {
     const legacy = { providerBaseURL: 'https://evil.example/provider/v1' } as unknown as Parameters<typeof resolveAdapterOptions>[0]
     expect(resolveAdapterOptions(legacy).providerBaseURL).toBe('https://api.commandcode.ai/provider/v1')
