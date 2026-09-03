@@ -9,6 +9,7 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { allowDshRuntime } from './compatibility.ts'
 import {
   COMMANDCODE_SETTINGS_READ_ENDPOINT,
   COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
@@ -204,6 +205,8 @@ function failure(message: string) {
 }
 
 export function apply(ctx: Context, config: Config): void {
+  if (!allowDshRuntime(ctx.logger, 'dsh-llm-commandcode', ['@deepseek-ai/dsh-llm'])) return
+
   let current: () => Config = () => config
   let lastRaw: Config | undefined
   let lastGood: CommandCodeConnectionOptions | undefined

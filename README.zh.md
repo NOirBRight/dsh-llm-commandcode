@@ -6,15 +6,24 @@ DeepSeek Harness 的 Command Code Provider API 插件。独立 provider 路由�
 
 包根入口公开 Cordis plugin contract。同一 artifact 还导出 `./client`，在 Settings → LLM Providers 中提供 Command Code 卡片。
 
+## 兼容性
+
+已验证运行时是 DeepSeek Harness `0.1.2-alpha.4` 与 `0.1.2-rc.1`（Cordis `4.0.2`）；这份记录只是证据，不是 allowlist。
+
+未知的新版本会先打一条 warning，再按正常挂载路径 best-effort 尝试，不会因为未验证而跳过。
+
+只有复现过的故障才会加入 blocklist；受影响版本、原因和证据见[兼容性记录](package.json)。
+
+
 ## 安装
 
 需要 DeepSeek Harness `0.1.2-alpha.4`。直接从 GitHub 安装：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.19/dsh-llm-commandcode-0.1.19.tgz
 dsh web
 ~~~
 
@@ -104,10 +113,9 @@ Provider API 文档：https://commandcode.ai/docs/provider
 
 请在 profile 中与 provider 插件一起显式安装 `dsh-llm-providers-ui`（见其 `cordis.patch.yml`）。
 
-
 ## 正式版安装（Latest）
 
-Command Code Provider API chat, model discovery, credentials, and quota reporting. 正式成品只支持 DeepSeek Harness 0.1.2-alpha.4；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
+Command Code Provider API chat, model discovery, credentials, and quota reporting. 正式成品按上方兼容性记录运行；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
 
 LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
 
@@ -115,7 +123,7 @@ Owner（Latest）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.5.tgz
 ~~~
 
 本 Provider（Latest）：
@@ -129,9 +137,9 @@ dsh plugin --profile web add --force \
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.19/dsh-llm-commandcode-0.1.19.tgz
 ~~~
 
 更新、卸载与验证：
@@ -151,4 +159,4 @@ dsh plugin --profile web remove dsh-llm-commandcode
 
 回滚：重新执行固定版本 v0.1.17 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.1.18](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.18) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/SHA256SUMS)。
+Release 与完整性：[v0.1.19](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.19) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.19/SHA256SUMS)。

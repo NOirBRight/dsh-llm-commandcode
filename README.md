@@ -6,7 +6,13 @@ Command Code Provider API chat for DeepSeek Harness. This plugin is a separate p
 
 The package root exposes the Cordis plugin contract. The same artifact exports `./client`, which contributes the Command Code card under Settings → LLM Providers.
 
-Compatibility: this release requires DeepSeek Harness `0.1.2-alpha.4` and `@deepseek-ai/cordis@4.0.2`; it is not compatible with Alpha.1–Alpha.3. Users on older runtimes must keep the last plugin tag built for that runtime.
+## Compatibility
+
+Verified runtimes are DeepSeek Harness `0.1.2-alpha.4` and `0.1.2-rc.1` on Cordis `4.0.2`; this record is evidence, not an allowlist.
+
+Unknown newer runtimes are attempted on a best-effort basis after one warning, and the plugin keeps its normal mount path.
+
+A reproduced failure is blocklisted only afterward; see the [compatibility records](package.json) for the affected version, reason, and evidence.
 
 
 ## LLM Providers UI ownership
@@ -19,16 +25,15 @@ The **LLM Providers** Settings page (`settings.section` `id: providers` with chi
 
 Install `dsh-llm-providers-ui` explicitly in the profile alongside provider plugins (see that package's `cordis.patch.yml`).
 
-
 ## Installation
 
 DeepSeek Harness `0.1.2-alpha.4` is required. Install directly from GitHub:
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.19/dsh-llm-commandcode-0.1.19.tgz
 dsh web
 ~~~
 
@@ -108,7 +113,6 @@ pnpm run lab:check   # existing lab GUI on 127.0.0.1:3082
 
 Provider API documentation: https://commandcode.ai/docs/provider
 
-
 ## Release installation (Latest)
 
 Command Code Provider API chat, model discovery, credentials, and quota reporting. The release artifact targets DeepSeek Harness 0.1.2-alpha.4 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
@@ -119,7 +123,7 @@ Owner (Latest):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.5.tgz
 ~~~
 
 Provider (Latest):
@@ -133,9 +137,9 @@ Fixed versions (reproducible):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.19/dsh-llm-commandcode-0.1.19.tgz
 ~~~
 
 Update, uninstall, and verify:
@@ -155,4 +159,4 @@ Configuration: use the plugin section in Settings for Web UI plugins, or the pro
 
 Rollback: rerun the fixed v0.1.17 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.1.18](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.18) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/SHA256SUMS).
+Release and integrity: [v0.1.19](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.19) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.19/SHA256SUMS).
