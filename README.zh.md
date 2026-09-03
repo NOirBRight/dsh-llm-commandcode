@@ -11,7 +11,10 @@ DeepSeek Harness 的 Command Code Provider API 插件。独立 provider 路由�
 需要 DeepSeek Harness `0.1.2-alpha.4`。直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.18
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
 dsh web
 ~~~
 
@@ -112,7 +115,7 @@ Owner（Latest）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.3.tgz
 ~~~
 
 本 Provider（Latest）：
@@ -126,7 +129,7 @@ dsh plugin --profile web add --force \
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.2/dsh-llm-providers-ui.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
 ~~~
