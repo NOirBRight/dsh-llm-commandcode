@@ -14,7 +14,7 @@ import { PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerUiCss } from './provider-chrome.tsx'
+import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, providerUiCss } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
@@ -407,13 +407,14 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   if (snapshot.status !== 'ready' || draft === undefined) return null
 
   const title = t('title')
-  const summary = formatProviderSummary(credential?.configured === true ? t('configured') : t('notConfigured'), interpolate(t('modelCount'), { count: draft.models.length }))
+  const headerCount = interpolate(t('modelCount'), { count: draft.models.length })
+  const headerStatus = credential?.configured === true ? t('configured') : t('notConfigured')
   const headerQuota = credential?.configured === true && usage.status === 'ready' ? headlineQuotaOf(usage.usage, t) : undefined
   return (
     <li style={cardStyle} data-provider-card="" data-provider-role="llm">
       <style>{providerUiCss}</style>
       <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => setOpen(current => !current)}>
-        <ProviderCardHeader title={title} mark={<BrandMark />} summary={summary} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} role="llm" {...(headerQuota === undefined ? {} : { quota: headerQuota })} />
+        <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerCount} status={headerStatus} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} role="llm" {...(headerQuota === undefined ? {} : { quota: headerQuota })} />
       </button>
       {open ? (
         <div style={bodyStyle} data-provider-body="">
