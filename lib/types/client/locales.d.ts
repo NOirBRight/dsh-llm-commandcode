@@ -44,6 +44,8 @@ export declare const en: {
     readonly removeModel: "Remove model";
     readonly modelDetails: "Model details";
     readonly dragModel: "Reorder model";
+    readonly sortModels: "Sort";
+    readonly doneSorting: "Done";
     readonly moveUp: "Move up";
     readonly moveDown: "Move down";
     readonly pickerTitle: "Select Command Code models";

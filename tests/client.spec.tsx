@@ -81,7 +81,13 @@ describe('CommandCodeSettingsCard', () => {
     expect((screen.getByRole('textbox', { name: 'Provider API URL' }) as HTMLInputElement).disabled).toBe(true)
     await waitFor(() => expect(screen.getByText(/demo-user/)).toBeTruthy())
     expect(screen.getByText(/\$15\.00/)).toBeTruthy()
-    expect(screen.getByText(/\$3\.00 \/ \$10\.00/)).toBeTruthy()
+    for (const meter of screen.getAllByRole('meter', { name: en.fiveHour })) {
+      expect(meter.getAttribute('aria-valuenow')).toBe('70')
+    }
+    for (const meter of screen.getAllByRole('meter', { name: en.weekly })) {
+      expect(meter.getAttribute('aria-valuenow')).toBe('60')
+    }
+    expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.getByText(/Provider \(active\)/)).toBeTruthy()
   })
 

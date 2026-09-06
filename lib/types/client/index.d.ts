@@ -14,19 +14,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'settings.commandcode': CommandCodeSettingsKey;
     }
 }
-import type { ProviderUsageReader } from 'dsh-llm-providers-ui/usage-readers';
-declare module '@deepseek-ai/cordis' {
-    interface Context {
-        providerDirectory: {
-            register(declaration: {
-                key: string;
-                role?: 'llm' | 'agent';
-                header?: 'shared' | 'legacy';
-                usage?: ProviderUsageReader;
-            }): () => void;
-        };
-    }
-}
 import type { CommandCodeCardFace } from './CommandCodeSettingsCard.tsx';
 export declare const name = "dsh-llm-commandcode-client";
 export declare const inject: string[];

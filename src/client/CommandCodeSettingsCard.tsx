@@ -14,7 +14,7 @@ import { PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerUiCss } from './provider-chrome.tsx'
+import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerUiCss } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
@@ -98,8 +98,6 @@ const iconButtonStyle: CSSProperties = {
 const disclosureStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, border: 0, padding: 0, background: 'transparent', color: 'var(--dsw-alias-label-primary)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }
 const statusStyle: CSSProperties = { margin: 0, fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }
 const errorStyle: CSSProperties = { ...statusStyle, color: 'var(--dsw-alias-state-error-primary)' }
-const barTrackStyle: CSSProperties = { boxSizing: 'border-box', height: 14, display: 'flex', overflow: 'hidden', borderRadius: 999, background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)' }
-
 let nextModelRow = 0
 function newModelRowId(): string { nextModelRow += 1; return 'commandcode-model-row-' + String(nextModelRow) }
 
@@ -233,15 +231,22 @@ function ModelDetails(props: {
 }
 
 function UsageBar({ label, window, t }: { label: string; window: { used: number; cap: number; exceeded?: boolean; resetAt?: string }; t: CommandCodeSettingsCardProps['t'] }): ReactNode {
-  const percent = window.cap <= 0 ? 0 : Math.min(100, Math.max(0, window.used / window.cap * 100))
   const reset = window.resetAt === undefined ? undefined : interpolate(t('reset'), { time: new Date(window.resetAt).toLocaleString() })
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}><span style={labelStyle}>{label}</span><span style={hintStyle}>{'$' + window.used.toFixed(2)} / {'$' + window.cap.toFixed(2)} · {percent.toFixed(1)}%</span></div>
-      <div style={barTrackStyle} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)}><span style={{ width: String(percent) + '%', height: '100%', flex: 'none', background: window.exceeded === true ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-state-business-primary)', transition: 'width 200ms ease' }} /></div>
-      <UsageResetAt label={reset} />
-    </div>
-  )
+  if (window.cap <= 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}><span style={labelStyle}>{label}</span><span style={hintStyle}>{'$' + window.used.toFixed(2)} / {'$' + window.cap.toFixed(2)}</span></div>
+    )
+  }
+  const remaining = 100 * (1 - window.used / window.cap)
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}><span style={labelStyle}>{label}</span><span style={hintStyle}>{'$' + window.used.toFixed(2)} / {'$' + window.cap.toFixed(2)}</span></div>
+        <UsageResetAt label={reset} />
+      </div>
+    )
+  }
+  return <ProviderQuotaMeter remainingPercent={Math.round(remaining * 10) / 10} label={label} {...(reset === undefined ? {} : { detail: reset })} />
 }
 
 function UsageContent({ state, t }: { state: UsageState; t: CommandCodeSettingsCardProps['t'] }): ReactNode {
@@ -333,6 +338,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const [usage, setUsage] = useState<UsageState>({ status: 'idle' })
   const [usageUpdatedAt, setUsageUpdatedAt] = useState<Date | undefined>(undefined)
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [modelSorting, setModelSorting] = useState(false)
   const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
   const dirty = source !== undefined && draft !== undefined && (!sameDraft(source, draft) || apiKey.length > 0)
 
@@ -428,9 +434,12 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
           <section style={sectionStyle} aria-label={t('models')}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <button type="button" style={disclosureStyle} aria-expanded={catalogOpen} aria-label={t('models')} onClick={() => setCatalogOpen(current => !current)}><IconChevron open={catalogOpen} /><span style={sectionTitleStyle}>{t('models')}</span><span style={hintStyle}>{draft.models.length > 0 ? t('customCatalog') : t('defaultCatalog')}</span></button>
-              <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => void fetchModels()}>{fetching ? t('fetchingModels') : t('refreshModels')}</button>
+              <span style={{ display: 'inline-flex', gap: 8 }}>
+                <button type="button" style={buttonStyle} aria-pressed={modelSorting} disabled={disabled || draft.models.length < 2} onClick={() => { setModelSorting(current => !current) }}>{t(modelSorting ? 'doneSorting' : 'sortModels')}</button>
+                <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => void fetchModels()}>{fetching ? t('fetchingModels') : t('refreshModels')}</button>
+              </span>
             </div>
-            {catalogOpen ? <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} moveButtons moveUpLabel={(model, index) => t('moveUp') + ': ' + (model.id.trim() || String(index + 1))} moveDownLabel={(model, index) => t('moveDown') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {
+            {catalogOpen ? <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} sorting={modelSorting} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} moveButtons moveUpLabel={(model, index) => t('moveUp') + ': ' + (model.id.trim() || String(index + 1))} moveDownLabel={(model, index) => t('moveDown') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {
               const expanded = expandedModels.has(item.rowId)
               const modelLabel = item.id.trim() || String(index + 1)
               return <div data-model-row={modelLabel} data-provider-model="" style={modelContentStyle}>
