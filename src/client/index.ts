@@ -44,6 +44,16 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
+import { createCommandCodeUsageReader } from 'dsh-llm-providers-ui/usage-readers';
+import type { ProviderUsageReader } from 'dsh-llm-providers-ui/usage-readers';
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    providerDirectory: {
+      register(declaration: { key: string; role?: 'llm' | 'agent'; header?: 'shared' | 'legacy'; usage?: ProviderUsageReader }): () => void;
+    };
+  }
+}
 import { CommandCodeSettingsCard } from './CommandCodeSettingsCard.tsx'
 import type { CommandCodeCardFace } from './CommandCodeSettingsCard.tsx'
 import { en, zh } from './locales.ts'
@@ -145,6 +155,12 @@ export function apply(ctx: Context): void {
       closeModelPicker: picker.close,
     }),
   }, CommandCodeSettingsCard))
+  ctx.inject(['providerDirectory'], (ctx) => {
+    ctx.effect(
+      () => ctx.providerDirectory.register({ key: COMMANDCODE_SETTINGS_NAMESPACE, role: 'llm', header: 'shared', usage: createCommandCodeUsageReader() }),
+      'dsh-llm-commandcode: provider directory',
+    )
+  })
   ctx.effect(() => {
     let warned = false
     const check = (): void => {

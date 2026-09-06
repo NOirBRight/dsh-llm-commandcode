@@ -44,6 +44,8 @@ export declare const en: {
     readonly removeModel: "Remove model";
     readonly modelDetails: "Model details";
     readonly dragModel: "Reorder model";
+    readonly moveUp: "Move up";
+    readonly moveDown: "Move down";
     readonly pickerTitle: "Select Command Code models";
     readonly pickerDescription: "Groups reflect official CLI plan categories; actual account access is checked by Command Code.";
     readonly pickerLoading: "Loading the live model catalog…";

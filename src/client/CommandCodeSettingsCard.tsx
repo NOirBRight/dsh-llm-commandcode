@@ -14,7 +14,8 @@ import { PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerHeaderStyle } from './provider-chrome.tsx'
+import { ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerUiCss } from './provider-chrome.tsx'
+import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
 import {
@@ -76,8 +77,7 @@ type UsageState =
 type ModelPatch = { [K in keyof ModelDraft]?: ModelDraft[K] | undefined }
 
 const cardStyle: CSSProperties = {
-  overflow: 'hidden', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 10,
-  background: 'var(--dsw-alias-bg-module-platform)',
+  overflow: 'visible',
 }
 const bodyStyle: CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 18, borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '16px 14px 18px',
@@ -303,6 +303,18 @@ function patchedModel(model: ModelDraft, patch: ModelPatch): ModelDraft {
   return next as unknown as ModelDraft
 }
 
+/** Headline remaining quota from real auth values; missing renders no meter, never zero. */
+function headlineQuotaOf(view: CommandCodeUsageView | undefined, t: CommandCodeSettingsCardProps['t']): ProviderQuotaState | undefined {
+  const window = view?.credits?.weekly ?? view?.credits?.fiveHour;
+  if (window === undefined || window.cap <= 0) return undefined;
+  const remaining = 100 * (1 - window.used / window.cap);
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) return undefined;
+  return {
+    remainingPercent: Math.round(remaining * 10) / 10,
+    label: view?.credits?.weekly !== undefined ? t('weekly') : t('fiveHour'),
+  };
+}
+
 /** Standard collapsible provider card. */
 export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): ReactNode {
   const { t } = props
@@ -390,13 +402,15 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
 
   const title = t('title')
   const summary = formatProviderSummary(credential?.configured === true ? t('configured') : t('notConfigured'), interpolate(t('modelCount'), { count: draft.models.length }))
+  const headerQuota = credential?.configured === true && usage.status === 'ready' ? headlineQuotaOf(usage.usage, t) : undefined
   return (
-    <li style={cardStyle}>
-      <button type="button" style={providerHeaderStyle} aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => setOpen(current => !current)}>
-        <ProviderCardHeader title={title} mark={<BrandMark />} summary={summary} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} />
+    <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+      <style>{providerUiCss}</style>
+      <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => setOpen(current => !current)}>
+        <ProviderCardHeader title={title} mark={<BrandMark />} summary={summary} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} role="llm" {...(headerQuota === undefined ? {} : { quota: headerQuota })} />
       </button>
       {open ? (
-        <div style={bodyStyle}>
+        <div style={bodyStyle} data-provider-body="">
           <p style={hintStyle}>{t('description')}</p>
           {snapshot.status === 'ready' && !snapshot.writable ? <p style={statusStyle}>{t('readOnly')}</p> : null}
           <section style={sectionStyle}>
@@ -416,10 +430,10 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
               <button type="button" style={disclosureStyle} aria-expanded={catalogOpen} aria-label={t('models')} onClick={() => setCatalogOpen(current => !current)}><IconChevron open={catalogOpen} /><span style={sectionTitleStyle}>{t('models')}</span><span style={hintStyle}>{draft.models.length > 0 ? t('customCatalog') : t('defaultCatalog')}</span></button>
               <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => void fetchModels()}>{fetching ? t('fetchingModels') : t('refreshModels')}</button>
             </div>
-            {catalogOpen ? <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {
+            {catalogOpen ? <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} moveButtons moveUpLabel={(model, index) => t('moveUp') + ': ' + (model.id.trim() || String(index + 1))} moveDownLabel={(model, index) => t('moveDown') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {
               const expanded = expandedModels.has(item.rowId)
               const modelLabel = item.id.trim() || String(index + 1)
-              return <div data-model-row={modelLabel} style={modelContentStyle}>
+              return <div data-model-row={modelLabel} data-provider-model="" style={modelContentStyle}>
                 <input style={rowInputStyle} value={item.id} placeholder={t('modelId')} aria-label={t('modelId') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { id: event.target.value })} />
                 <input style={rowInputStyle} value={item.name ?? ''} placeholder={t('modelName')} aria-label={t('modelName') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { name: event.target.value || undefined })} />
                 <button type="button" style={iconButtonStyle} aria-label={t('modelDetails') + ': ' + modelLabel} aria-expanded={expanded} title={t('modelDetails')} onClick={() => toggleModel(item.rowId)}><IconChevron open={expanded} /></button>

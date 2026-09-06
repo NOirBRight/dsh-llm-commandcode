@@ -1,6 +1,6 @@
 /** Shared LLM provider navigation chrome. */
 
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 const LABELS = new Set(['LLM 供应商', 'LLM Providers', '供应商', 'Providers'])
 const MARK = 'data-dsh-providers-icon'
@@ -45,44 +45,14 @@ export function installProvidersNavIcon(): () => void {
   }
 }
 
-export const providerHeaderStyle: CSSProperties = {
-  boxSizing: 'border-box', width: '100%', minHeight: 68, display: 'flex', alignItems: 'center',
-  justifyContent: 'space-between', gap: 16, border: 0, padding: '12px 14px', background: 'transparent',
-  color: 'var(--dsw-alias-label-primary)', font: 'inherit', textAlign: 'left', cursor: 'pointer',
-}
-
 /** Join account state and model count in the standard provider header. */
 export function formatProviderSummary(status: string, modelsLabel: string): string {
   return status.replace(/[。.]$/u, '') + ' · ' + modelsLabel
 }
 
-/** Standard provider card header used by the shared LLM Providers page. */
-export function ProviderCardHeader(props: {
-  title: string
-  mark: ReactNode
-  summary: string
-  open: boolean
-  unsaved?: boolean
-  unsavedLabel?: string
-}): ReactNode {
-  return (
-    <>
-      <span style={{ display: 'flex', minWidth: 0, flex: 1, flexDirection: 'column', gap: 4 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, lineHeight: 1 }}>
-          <span style={{ width: 18, height: 18, flex: 'none', display: 'block' }}>{props.mark}</span>
-          <span style={{ lineHeight: '20px' }}>{props.title}</span>
-        </span>
-        <span style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {props.summary}
-          {props.unsaved === true ? <span style={{ color: 'var(--dsw-alias-state-warning-primary)' }}> · {props.unsavedLabel ?? 'Unsaved'}</span> : null}
-        </span>
-      </span>
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ flex: 'none', transform: props.open ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease', color: 'var(--dsw-alias-label-tertiary)' }}>
-        <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </>
-  )
-}
+/** Canonical shared header: delete per-provider fork, re-export built artifact. */
+export { ProviderCardHeader, providerUiCss } from 'dsh-llm-providers-ui/provider-ui';
+export type { ProviderCardHeaderProps, ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 
 /** Standard compact usage reset caption. */
 export function UsageResetAt(props: { label: string | undefined }): ReactNode {
