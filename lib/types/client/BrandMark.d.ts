@@ -1,4 +1,4 @@
-/** Command Code mark matching the supplied black-and-white reference. */
+/** Supplied CommandCode paths with the shared monochrome foreground/background theme tokens. */
 import type { ReactNode } from 'react';
 export declare function BrandMark(): ReactNode;
 //# sourceMappingURL=BrandMark.d.ts.map
