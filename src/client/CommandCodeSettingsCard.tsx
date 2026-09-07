@@ -372,7 +372,8 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
       else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()) }
     } catch (error: unknown) { setUsage({ status: 'error', message: messageOf(error, t('quotaFailed')) }) }
   }
-  useEffect(() => { if (open && snapshot.status === 'ready' && credential?.configured === true) void loadUsage() }, [open, snapshot.status, credential?.configured])
+  // Header quota loads collapsed once the credential is ready; idle status dedups so expansion never refires.
+  useEffect(() => { if (snapshot.status === 'ready' && credential?.configured === true && usage.status === 'idle') void loadUsage() }, [snapshot.status, credential?.configured, usage.status])
 
   const fetchModels = async (): Promise<void> => {
     if (draft === undefined) return
@@ -414,7 +415,13 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
     <li style={cardStyle} data-provider-card="" data-provider-role="llm">
       <style>{providerUiCss}</style>
       <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => setOpen(current => !current)}>
-        <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerCount} status={headerStatus} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} role="llm" {...(headerQuota === undefined ? {} : { quota: headerQuota })} />
+        <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerCount} status={headerStatus} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} role="llm"
+          {...(headerQuota === undefined
+            ? (credential?.configured === true && (usage.status === 'error' || usage.status === 'unsupported')
+              // Query attempted but no usable quota: unavailable dash, never a fabricated percent.
+              ? { quota: { label: t('quota') } }
+              : {})
+            : { quota: headerQuota })} />
       </button>
       {open ? (
         <div style={bodyStyle} data-provider-body="">

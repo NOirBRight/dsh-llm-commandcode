@@ -31,9 +31,9 @@ DeepSeek Harness `0.1.2-alpha.4` is required. Install directly from GitHub:
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.10/dsh-llm-providers-ui-0.1.10.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.19/dsh-llm-commandcode-0.1.19.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.20/dsh-llm-commandcode-0.1.20.tgz
 dsh web
 ~~~
 
@@ -123,7 +123,7 @@ Owner (Latest):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.5.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.10.tgz
 ~~~
 
 Provider (Latest):
@@ -137,9 +137,9 @@ Fixed versions (reproducible):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.10/dsh-llm-providers-ui-0.1.10.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.19/dsh-llm-commandcode-0.1.19.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.20/dsh-llm-commandcode-0.1.20.tgz
 ~~~
 
 Update, uninstall, and verify:

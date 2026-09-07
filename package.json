@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-commandcode",
   "description": "Command Code Provider API LLM plugin for DeepSeek Harness",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "publishConfig": {
     "access": "public"
   },
@@ -123,7 +123,7 @@
     "@deepseek-ai/dsh-settings": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-scope": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-timeout": "0.1.2-alpha.4",
-    "dsh-llm-providers-ui": "file:../dsh-providers-settings-a",
+    "dsh-llm-providers-ui": "https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.10/dsh-llm-providers-ui-0.1.10.tgz",
     "@types/node": "^22.0.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",

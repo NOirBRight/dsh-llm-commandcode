@@ -2,54 +2,6 @@
 
 import type { ReactNode } from 'react'
 
-const LABELS = new Set(['LLM 供应商', 'LLM Providers', '供应商', 'Providers'])
-const MARK = 'data-dsh-providers-icon'
-const GLOBE_PATH = 'M7 0.35a6.65 6.65 0 1 0 0 13.3A6.65 6.65 0 0 0 7 .35Zm0 1.2c.65 0 1.75 1.94 1.75 5.45S7.65 12.45 7 12.45 5.25 10.51 5.25 7 6.35 1.55 7 1.55ZM1.58 6.4h10.84v1.2H1.58V6.4Z'
-
-function patchNav(): void {
-  if (typeof document === 'undefined') return
-  for (const button of document.querySelectorAll('nav button')) {
-    const label = [...button.querySelectorAll('span')].find(span => LABELS.has(span.textContent?.trim() ?? ''))
-    if (label === undefined) continue
-    const svg = button.querySelector('svg')
-    if (svg === null || svg.getAttribute(MARK) === 'globe') continue
-    svg.setAttribute(MARK, 'globe')
-    svg.setAttribute('viewBox', '0 0 14 14')
-    svg.setAttribute('fill', 'none')
-    svg.innerHTML = '<path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="' + GLOBE_PATH + '"/>'
-  }
-}
-
-/** Install the provider globe icon and remove the observer on teardown. */
-export function installProvidersNavIcon(): () => void {
-  if (typeof document === 'undefined' || document.body === null) return () => {}
-  let frame = 0
-  let scheduled = false
-  const flush = (): void => {
-    frame = 0
-    scheduled = false
-    patchNav()
-  }
-  const observer = new MutationObserver(() => {
-    if (scheduled) return
-    scheduled = true
-    frame = requestAnimationFrame(flush)
-  })
-  observer.observe(document.body, { childList: true, subtree: true })
-  patchNav()
-  return () => {
-    observer.disconnect()
-    if (frame !== 0) cancelAnimationFrame(frame)
-    frame = 0
-    scheduled = false
-  }
-}
-
-/** Join account state and model count in the standard provider header. */
-export function formatProviderSummary(status: string, modelsLabel: string): string {
-  return status.replace(/[。.]$/u, '') + ' · ' + modelsLabel
-}
-
 /** Canonical shared header: delete per-provider fork, re-export built artifact. */
 export { ProviderCardHeader, ProviderQuotaMeter, providerUiCss } from 'dsh-llm-providers-ui/provider-ui';
 export type { ProviderCardHeaderProps, ProviderQuotaMeterProps, ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
