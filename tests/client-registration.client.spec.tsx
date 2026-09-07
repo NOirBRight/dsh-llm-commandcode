@@ -3,6 +3,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
+import { clearProviderUsageCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 
 interface SlotEntry {
   options: Record<string, unknown>
@@ -132,5 +133,17 @@ describe('CommandCode client registration', () => {
     expect(second.slots.entries('settings.section')).toHaveLength(1)
     await dispose(second.ctx, secondFiber)
     ownerLater()
+  })
+
+  it('purges persisted quota when the API key is stored without a provider directory', async () => {
+    rememberHeadlineQuota('llm-commandcode', 'CommandCode', { label: 'W', remainingPercent: 70 })
+    const { ctx, slots } = await bench()
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]?.inject?.() as { storeApiKey: (value: string) => Promise<unknown> }
+    await face.storeApiKey('new-key')
+    expect(peekCachedUsage('llm-commandcode')).toBeUndefined()
+    clearProviderUsageCache()
+    await dispose(ctx, fiber)
   })
 })

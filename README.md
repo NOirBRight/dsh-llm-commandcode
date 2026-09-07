@@ -99,6 +99,8 @@ The authenticated Connection session protects these management operations. Setti
 
 Quota is separate from chat. The Host best-effort-calls the unofficial account routes used by the official CLI (`/alpha/whoami`, `/alpha/billing/credits`, `/alpha/billing/subscriptions`, `/alpha/usage/summary`) on `https://api.commandcode.ai`. Failures never block chat. Set `usageEnabled: false` to hide the panel.
 
+The collapsed header falls back to the last successful quota from the shared browser cache while its credential is configured; storing a new key purges the cache in every bundle copy, even without providerDirectory.
+
 The card shows the account name, plan, monthly / purchased / free credits, 5-hour and weekly windows, and optional period cost/tokens plus a refresh time.
 
 ## Verification

@@ -1,6 +1,6 @@
 /** Command Code provider card using the shared DSH provider layout. */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -17,6 +17,8 @@ import { BrandMark } from './BrandMark.tsx'
 import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, providerUiCss } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
+import { headerQuotaFromCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
+
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
 import {
   ModelCatalogFields,
@@ -337,6 +339,11 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [usage, setUsage] = useState<UsageState>({ status: 'idle' })
   const [usageUpdatedAt, setUsageUpdatedAt] = useState<Date | undefined>(undefined)
+  // Read generation: only the latest usage read may publish. A superseded read
+  // (save-new-key, credential change, unmount) must not resurrect old-account
+  // usage into state or the persisted headline cache.
+  const usageEpoch = useRef(0)
+  const mounted = useRef(true)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [modelSorting, setModelSorting] = useState(false)
   const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
@@ -348,10 +355,29 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
     setSource(next); setDraft(next); setSourceRevision(snapshot.revision)
   }, [dirty, snapshot.revision, snapshot.status, snapshot.value, sourceRevision])
 
+  // Credential generation mirrors the usage epoch: a superseded credential read
+  // must not overwrite fresher credential state.
+  const credentialEpoch = useRef(0)
   const refreshCredential = async (): Promise<void> => {
-    try { setCredential(await props.describeCredential()) } catch { setCredential(undefined) }
+    const epoch = credentialEpoch.current + 1
+    credentialEpoch.current = epoch
+    const liveCredential = (): boolean => mounted.current && epoch === credentialEpoch.current
+    try {
+      const next = await props.describeCredential()
+      if (!liveCredential()) return
+      setCredential(next)
+    } catch {
+      if (!liveCredential()) return
+      setCredential(undefined)
+    }
   }
   useEffect(() => { if (snapshot.status === 'ready') void refreshCredential() }, [snapshot.status, snapshot.value?.apiKeyEnv])
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   useEffect(() => () => { props.closeModelPicker() }, [props.closeModelPicker])
 
   const disabled = snapshot.status !== 'ready' || !snapshot.writable || busy
@@ -364,16 +390,22 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
 
   const loadUsage = async (): Promise<void> => {
     if (draft === undefined || snapshot.value?.usageEnabled === false || (!credential?.configured && apiKey.trim().length === 0)) return
+    const epoch = usageEpoch.current + 1
+    usageEpoch.current = epoch
+    const live = (): boolean => mounted.current && epoch === usageEpoch.current
     setUsage({ status: 'loading' })
     try {
       if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
       const result = await props.fetchUsage()
+      if (!live()) return
       if (result.status === 'unsupported') setUsage({ status: 'unsupported' })
-      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()) }
-    } catch (error: unknown) { setUsage({ status: 'error', message: messageOf(error, t('quotaFailed')) }) }
+      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()); rememberHeadlineQuota('llm-commandcode', 'CommandCode', headlineQuotaOf(result.usage, t)) }
+    } catch (error: unknown) { if (live()) setUsage({ status: 'error', message: messageOf(error, t('quotaFailed')) }) }
   }
   // Header quota loads collapsed once the credential is ready; idle status dedups so expansion never refires.
-  useEffect(() => { if (snapshot.status === 'ready' && credential?.configured === true && usage.status === 'idle') void loadUsage() }, [snapshot.status, credential?.configured, usage.status])
+  useEffect(() => {
+    if (snapshot.status === 'ready' && credential?.configured === true && usage.status === 'idle') void loadUsage()
+  }, [snapshot.status, credential?.configured, usage.status])
 
   const fetchModels = async (): Promise<void> => {
     if (draft === undefined) return
@@ -395,22 +427,42 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const discard = (): void => { if (source !== undefined) setDraft(structuredClone(source)); setApiKey(''); setFailure(undefined); setNotice(undefined) }
   const save = async (): Promise<void> => {
     if (draft === undefined || snapshot.value === undefined || invalid) return
+    usageEpoch.current++
     setBusy(true); setFailure(undefined); setNotice(undefined)
     try {
       if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
       const accepted = await props.saveConfiguration(settingsOf(draft, snapshot.value))
       const next = draftOf(accepted.settings)
       setSource(next); setDraft(next); setSourceRevision(accepted.revision); setApiKey(''); setNotice(t('saved')); await refreshCredential(); setUsage({ status: 'idle' })
-    } catch (error: unknown) { setFailure(messageOf(error, t('saveFailed'))) }
+    } catch (error: unknown) {
+      const message = messageOf(error, t('saveFailed'))
+      setFailure(message)
+      // Idle would automatically retry storing the rejected key through loadUsage.
+      setUsage(current => current.status === 'loading' ? { status: 'error', message } : current)
+    }
     finally { setBusy(false) }
   }
 
-  if (snapshot.status !== 'ready' || draft === undefined) return null
-
   const title = t('title')
+  const liveQuota = credential?.configured === true && usage.status === 'ready' ? headlineQuotaOf(usage.usage, t) : undefined
+  // Persisted fallback before fresh metadata: allowed while credential is unknown,
+  // withheld once known-false or the usage read settles error/unsupported.
+  const quotaWithheld = credential?.configured === false || usage.status === 'error' || usage.status === 'unsupported'
+  // The verdict gates the entire header quota, not only the persisted fallback:
+  // stale local lastUsage must not look fresh on error/unsupported either.
+  const headerQuota = quotaWithheld ? undefined : (liveQuota ?? headerQuotaFromCache(peekCachedUsage('llm-commandcode')))
+  if (snapshot.status !== 'ready' || draft === undefined) {
+    return (
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <style>{providerUiCss}</style>
+        <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => { setOpen(current => !current) }}>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary="" status="" open={open} role="llm" {...(headerQuota === undefined ? {} : { quota: headerQuota })} />
+        </button>
+      </li>
+    )
+  }
   const headerCount = interpolate(t('modelCount'), { count: draft.models.length })
-  const headerStatus = credential?.configured === true ? t('configured') : t('notConfigured')
-  const headerQuota = credential?.configured === true && usage.status === 'ready' ? headlineQuotaOf(usage.usage, t) : undefined
+  const headerStatus = credential === undefined ? '' : credential.configured ? t('configured') : t('notConfigured')
   return (
     <li style={cardStyle} data-provider-card="" data-provider-role="llm">
       <style>{providerUiCss}</style>
