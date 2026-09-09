@@ -46,7 +46,7 @@ describe('Command Code model discovery', () => {
     })
     expect(result.models).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'gpt-5.6-sol', inputModalities: ['text', 'image'] }),
-      expect.objectContaining({ id: 'xai/grok-4.6', inputModalities: ['text'] }),
+      expect.objectContaining({ id: 'xai/grok-4.6', inputModalities: ['text', 'image'] }),
       expect.objectContaining({ id: 'z-ai/glm-5.3-flash', inputModalities: ['text', 'image'] }),
       expect.objectContaining({ id: 'deepseek/deepseek-v4-flash-vision-exp', inputModalities: ['text', 'image'] }),
       expect.objectContaining({ id: 'Qwen/Qwen3.8-Max-0902', inputModalities: ['text', 'image'] }),

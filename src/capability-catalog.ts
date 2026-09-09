@@ -51,6 +51,7 @@ const IMAGE_MODELS = new Set([
   'meta/muse-spark-1.3',
   'meta/muse-spark-1.3-contributor',
   'xai/grok-4.5',
+  'xai/grok-4.6',
 ])
 
 const NATIVE_REASONING_MODELS = new Set([

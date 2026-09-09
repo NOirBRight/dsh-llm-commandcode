@@ -1,4 +1,9 @@
 # Changelog
+
+## [0.1.21] - 2026-09-09
+
+- Advertise image input for `xai/grok-4.6`.
+
 ## [0.1.20] - 2026-09-07
 
 ### Changed
