@@ -109,5 +109,6 @@ export function createCommandCodePiAiProfile(connection: CommandCodeConnectionOp
     retryPolicy: connection.retryPolicy,
     piProvider,
     configuredMaxTokens,
+    modelErrors: new Map(),
   }
 }

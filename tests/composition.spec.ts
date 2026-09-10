@@ -98,7 +98,9 @@ describe('CommandCode composition', () => {
     })
     const result = await assemble(ctx, { model: 'claude-sonnet-4-6', messages: [] })
     expect(result.finish).toEqual({ kind: 'stop' })
-    expect(server.paths).toEqual(['/provider/v1/messages'])
+    // pi-ai 0.85.x sends every Anthropic Messages request through the SDK beta
+    // namespace (?beta=true); request-body semantics below are unchanged.
+    expect(server.paths).toEqual(['/provider/v1/messages?beta=true'])
     expect(server.requests[0]).toMatchObject({
       output_config: { effort: 'xhigh' },
       thinking: { type: 'adaptive' },

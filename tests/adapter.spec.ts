@@ -32,6 +32,14 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
     expect(models[1]?.compat).toMatchObject({ forceAdaptiveThinking: true })
   })
 
+  it('exposes an empty modelErrors map for the host modelOf path', () => {
+    const profile = createCommandCodePiAiProfile(options())
+    // Mirrors PiAiAdapter.modelOf: unconditional profile.modelErrors.get(model).
+    expect(profile.modelErrors).toBeInstanceOf(Map)
+    expect(profile.modelErrors.size).toBe(0)
+    expect(profile.modelErrors.get('gpt-5.6-luna')).toBeUndefined()
+  })
+
   it('resolves exact context and selectable/default effort metadata', async () => {
     const connection = options()
     const adapter = new CommandCodeAdapter({ options: () => connection, resolveApiKey: async () => 'key' })
