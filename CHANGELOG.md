@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.22] - 2026-09-10
+
+### Added
+
+- DeepSeek V4.1 Flash: vision plus `low`/`high`/`max` (default `max`), from the official `command-code@1.53.0` model table.
+- Fill ids the CLI table does not describe from models.dev same-id rows, preferring OpenRouter; ids no source describes stay unknown rather than guessed.
+- Persisted `thinkingEfforts` so an overlay-filled model keeps its effort selector across a save.
+
+### Fixed
+
+- A saved `defaultEffort` the current table no longer offers is dropped instead of failing config validation. Previously one unknown model made the whole provider card unreadable until the settings file was edited by hand.
+- Fetch no longer waits on a slow models.dev dump, and refreshes a warm overlay once when the listing contains an id no source describes.
+
 ## [0.1.21] - 2026-09-09
 
 - Advertise image input for `xai/grok-4.6`.

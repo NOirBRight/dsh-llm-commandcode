@@ -109,6 +109,7 @@ const catalogModel: z<CommandCodeModelConfig> = z.object({
   maxTokens: z.number().step(1).min(1),
   thinking: z.boolean(),
   defaultEffort: z.string(),
+  thinkingEfforts: z.array(z.string()),
   inputModalities: z.array(z.union(MODEL_MODALITIES)),
 })
 
@@ -148,13 +149,27 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
     if (model.thinking !== undefined && typeof model.thinking !== 'boolean') throw new Error('llm-commandcode: invalid thinking for ' + model.id)
     // Thinking persistence: when explicitly disabled, discard any persisted effort.
     const normalizedEffort = model.thinking === false ? undefined : model.defaultEffort
-    const effortModel = normalizedEffort === undefined ? { id: model.id } : { id: model.id, defaultEffort: normalizedEffort }
-    const efforts = effortsForCommandCodeModel({ id: model.id })
+    const overlayEfforts = model.thinkingEfforts === undefined || model.thinkingEfforts.length === 0 ? undefined : [...model.thinkingEfforts]
+    const effortModel = {
+      id: model.id,
+      ...(normalizedEffort === undefined ? {} : { defaultEffort: normalizedEffort }),
+      ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }),
+    }
+    const efforts = effortsForCommandCodeModel(effortModel)
     const hasEfforts = efforts.length > 0
     // Migration: old configs without thinking keep their effort if the model supports it.
     const effectiveThinking = model.thinking ?? (hasEfforts ? undefined : undefined)
-    if (normalizedEffort !== undefined && !efforts.includes(normalizedEffort)) throw new Error('llm-commandcode: defaultEffort is not offered for ' + model.id)
-    const defaultEffort = model.thinking === false ? undefined : defaultEffortForCommandCodeModel(effortModel)
+    // A saved effort the current table no longer offers must not brick the whole
+    // provider: drop it and keep the model. The settings UI only offers valid levels.
+    const offeredEffort = normalizedEffort !== undefined && efforts.includes(normalizedEffort) ? normalizedEffort : undefined
+    const defaultEffort = model.thinking === false
+      ? undefined
+      : defaultEffortForCommandCodeModel({
+        id: model.id,
+        ...(offeredEffort === undefined ? {} : { defaultEffort: offeredEffort }),
+        ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }),
+      })
+    const thinkingEfforts = effortsForCommandCodeModel({ id: model.id }).length > 0 ? undefined : overlayEfforts
     const input = model.inputModalities === undefined
       ? inputModalitiesForCommandCodeModel(model.id)
       : model.inputModalities.length === 0
@@ -172,6 +187,7 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
       ...(model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens }),
       ...(effectiveThinking === undefined ? {} : { thinking: effectiveThinking }),
       ...(persistedEffort === undefined ? {} : { defaultEffort: persistedEffort }),
+      ...(thinkingEfforts === undefined ? {} : { thinkingEfforts }),
       inputModalities: [...input],
     }
   })

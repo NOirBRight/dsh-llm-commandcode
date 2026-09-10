@@ -26,6 +26,8 @@ export interface CommandCodeModelConfig {
   thinking?: boolean
   /** Saved default effort; omission derives the provider plugin policy. */
   defaultEffort?: string
+  /** Live effort ids from models.dev when the CLI snapshot has no row. */
+  thinkingEfforts?: string[]
   inputModalities?: ModelModality[]
 }
 

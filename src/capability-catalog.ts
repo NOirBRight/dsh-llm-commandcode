@@ -19,6 +19,7 @@ const IMAGE_MODELS = new Set([
   'gpt-5.3-codex',
   'gpt-5.4-mini',
   'deepseek/deepseek-v4-flash-vision-exp',
+  'deepseek/deepseek-v4.1-flash',
   'moonshotai/kimi-k3',
   'moonshotai/kimi-k2.7-code',
   'moonshotai/kimi-k2.7-code-highspeed',

@@ -111,6 +111,28 @@ describe('CommandCodeSettingsCard', () => {
     expect(saveConfiguration).toHaveBeenCalledWith({ ...settings, models: [{ ...settings.models[0]!, defaultEffort: 'max' }] })
   })
 
+  it('keeps models.dev overlay efforts when the row is saved', async () => {
+    const overlayModel = {
+      id: 'vendor/future-model',
+      contextWindow: 128000,
+      thinking: true,
+      thinkingEfforts: ['low', 'high'],
+      defaultEffort: 'high',
+    }
+    const current = { ...settings, models: [overlayModel] }
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView) => ({ settings: next, revision: 2 }))
+    render(<CommandCodeSettingsCard {...props({ saveConfiguration }, current)} />)
+    fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
+    fireEvent.change(screen.getByPlaceholderText('Enter Command Code API key'), { target: { value: 'new-secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(saveConfiguration).toHaveBeenCalledTimes(1))
+    expect(saveConfiguration.mock.calls[0]?.[0]?.models[0]).toMatchObject({
+      id: 'vendor/future-model',
+      thinkingEfforts: ['low', 'high'],
+      defaultEffort: 'high',
+    })
+  })
+
   it('keeps public discovery credential-free and endpoint-free', async () => {
     const storeApiKey = vi.fn(async () => {})
     const discoverModels = vi.fn(async () => ({ models: [{ id: 'new-model', contextWindow: 1048576, inputModalities: ['text'] }], warnings: [] }))

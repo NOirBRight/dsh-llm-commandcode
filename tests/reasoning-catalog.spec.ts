@@ -45,6 +45,8 @@ describe('official Command Code effort catalog', () => {
     expect(defaultEffortForCommandCodeModel({ id: 'claude-fable-5-1' })).toBe('high')
     expect(effortsForCommandCodeModel({ id: 'deepseek/deepseek-v4-flash-fast' })).toEqual(['low', 'high', 'max'])
     expect(defaultEffortForCommandCodeModel({ id: 'deepseek/deepseek-v4-flash-fast' })).toBe('max')
+    expect(effortsForCommandCodeModel({ id: 'deepseek/deepseek-v4.1-flash' })).toEqual(['low', 'high', 'max'])
+    expect(defaultEffortForCommandCodeModel({ id: 'deepseek/deepseek-v4.1-flash' })).toBe('max')
     expect(effortsForCommandCodeModel({ id: 'moonshotai/Kimi-K3' })).toEqual(['low', 'high', 'max'])
     expect(defaultEffortForCommandCodeModel({ id: 'moonshotai/Kimi-K3' })).toBe('high')
     expect(effortsForCommandCodeModel({ id: 'Qwen/Qwen3.8-Max-0902' })).toEqual(['low', 'medium', 'xhigh'])
@@ -65,6 +67,8 @@ describe('official Command Code effort catalog', () => {
     const injected = { id: 'future-model', reasoningEfforts: ['low', 'high'] } as unknown as Parameters<typeof effortsForCommandCodeModel>[0]
     expect(effortsForCommandCodeModel(injected)).toEqual([])
     expect(defaultEffortForCommandCodeModel({ id: 'future-model', defaultEffort: 'low' })).toBeUndefined()
+    expect(effortsForCommandCodeModel({ id: 'future-model', thinkingEfforts: ['low', 'high'] })).toEqual(['low', 'high'])
+    expect(defaultEffortForCommandCodeModel({ id: 'future-model', thinkingEfforts: ['low', 'high'] })).toBe('high')
     expect(defaultEffortForCommandCodeModel({ id: 'gpt-5.6-luna', defaultEffort: 'low' })).toBe('low')
   })
 })

@@ -119,6 +119,19 @@ describe('CommandCode composition', () => {
     })
   })
 
+  it('keeps a saved model whose effort the current table no longer offers', () => {
+    // A model saved by a newer plugin build must not fail config validation and
+    // brick the whole provider card: the stale effort is dropped, the model stays.
+    const config = CommandCode.Config({
+      models: [{ id: 'vendor/future-model', contextWindow: 100000, thinking: true, defaultEffort: 'max' }],
+    })
+    const options = CommandCode.resolveAdapterOptions(config)
+    expect(options.models).toEqual([
+      expect.objectContaining({ id: 'vendor/future-model', contextWindow: 100000, thinking: true }),
+    ])
+    expect(options.models[0]?.defaultEffort).toBeUndefined()
+  })
+
   it('registers the management RPC through authenticated Connection and disposes it with the plugin', async () => {
     const dispose = vi.fn(async () => undefined)
     const handle = vi.fn((_channel: string, _handler: unknown) => dispose)

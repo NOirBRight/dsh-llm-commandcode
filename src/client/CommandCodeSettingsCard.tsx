@@ -60,6 +60,7 @@ interface ModelDraft {
   contextWindowOverride?: string
   maxTokens?: string
   defaultEffort?: string
+  thinkingEfforts?: string[]
   vision?: boolean
   thinking?: boolean
 }
@@ -119,6 +120,7 @@ function modelDraftOf(model: CommandCodeModelConfig): ModelDraft {
     ...(model.contextWindowOverride === undefined ? {} : { contextWindowOverride: String(model.contextWindowOverride) }),
     ...(model.maxTokens === undefined ? {} : { maxTokens: String(model.maxTokens) }),
     ...(defaultEffort === undefined ? {} : { defaultEffort }),
+    ...(model.thinkingEfforts === undefined || model.thinkingEfforts.length === 0 ? {} : { thinkingEfforts: [...model.thinkingEfforts] }),
     ...(vision ? { vision: true } : {}),
     ...(thinking === undefined ? {} : { thinking }),
   }
@@ -141,8 +143,12 @@ function modelSettingsOf(draft: ModelDraft): CommandCodeModelConfig {
   const contextWindowOverride = draft.contextWindowOverride === undefined ? undefined : integerOf(draft.contextWindowOverride)
   const maxTokens = draft.maxTokens === undefined ? undefined : integerOf(draft.maxTokens)
   const thinking = draft.thinking
+  // Overlay efforts must survive a save: models.dev-only ids keep their selector.
+  const overlayEfforts = draft.thinkingEfforts === undefined || draft.thinkingEfforts.length === 0 ? undefined : draft.thinkingEfforts
   // When thinking is explicitly disabled, clear the persisted effort (migration fix).
-  const effortModel = thinking === false ? { id: draft.id.trim() } : { id: draft.id.trim(), ...(draft.defaultEffort === undefined ? {} : { defaultEffort: draft.defaultEffort }) }
+  const effortModel = thinking === false
+    ? { id: draft.id.trim(), ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }) }
+    : { id: draft.id.trim(), ...(draft.defaultEffort === undefined ? {} : { defaultEffort: draft.defaultEffort }), ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }) }
   const defaultEffort = thinking === false ? undefined : defaultEffortForCommandCodeModel(effortModel)
   const vision = draft.vision === true
   const inputModalities = vision ? ['text' as const, 'image' as const] : undefined
@@ -155,6 +161,7 @@ function modelSettingsOf(draft: ModelDraft): CommandCodeModelConfig {
     ...(maxTokens === undefined || Number.isNaN(maxTokens) ? {} : { maxTokens }),
     ...(thinking === undefined ? {} : { thinking }),
     ...(defaultEffort === undefined ? {} : { defaultEffort }),
+    ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }),
     ...(inputModalities === undefined ? {} : { inputModalities }),
   }
 }
@@ -198,7 +205,11 @@ function ModelDetails(props: {
   patch: (patch: ModelPatch) => void
 }): ReactNode {
   const { model, disabled, t, patch } = props
-  const policyModel = { id: model.id, ...(model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort }) }
+  const policyModel = {
+    id: model.id,
+    ...(model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort }),
+    ...(model.thinkingEfforts === undefined ? {} : { thinkingEfforts: model.thinkingEfforts }),
+  }
   const efforts = effortsForCommandCodeModel(policyModel)
   const defaultEffort = defaultEffortForCommandCodeModel(policyModel)
   const hasEfforts = efforts.length > 0

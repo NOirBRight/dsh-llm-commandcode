@@ -7,7 +7,7 @@ import type {
   CommandCodeUsageWindow,
 } from './types.ts'
 import { isPositiveInteger } from './numbers.ts'
-import { effortsForCommandCodeModel } from './reasoning-catalog.ts'
+import { canonCommandCodeEffort, effortsForCommandCodeModel } from './reasoning-catalog.ts'
 
 export type {
   CommandCodeModelConfig,
@@ -102,12 +102,25 @@ export function decodeCommandCodeModel(value: unknown): CommandCodeModelConfig |
   if (!optionalPositiveInteger(value.maxTokens)) return undefined
   if (value.reasoningEfforts !== undefined) return undefined
   if (value.thinking !== undefined && typeof value.thinking !== 'boolean') return undefined
+  let thinkingEfforts: string[] | undefined
+  if (value.thinkingEfforts !== undefined) {
+    if (!Array.isArray(value.thinkingEfforts)) return undefined
+    thinkingEfforts = []
+    for (const item of value.thinkingEfforts) {
+      if (typeof item !== 'string') return undefined
+      const effort = canonCommandCodeEffort(item)
+      if (effort === undefined || thinkingEfforts.includes(effort)) return undefined
+      thinkingEfforts.push(effort)
+    }
+    if (thinkingEfforts.length === 0) thinkingEfforts = undefined
+  }
   // Migration: thinking false clears defaultEffort; old configs without thinking keep their effort.
   const thinking = value.thinking as boolean | undefined
   const rawEffort = thinking === false ? undefined : value.defaultEffort
+  const effortModel = thinkingEfforts === undefined ? { id: value.id } : { id: value.id, thinkingEfforts }
   if (rawEffort !== undefined) {
     if (typeof rawEffort !== 'string' || rawEffort.length === 0) return undefined
-    if (!effortsForCommandCodeModel({ id: value.id }).includes(rawEffort as string)) return undefined
+    if (!effortsForCommandCodeModel(effortModel).includes(rawEffort)) return undefined
   }
   let modalities: ('text' | 'image')[] | undefined
   if (value.inputModalities !== undefined) {
@@ -126,6 +139,7 @@ export function decodeCommandCodeModel(value: unknown): CommandCodeModelConfig |
     ...(value.maxTokens === undefined ? {} : { maxTokens: value.maxTokens }),
     ...(thinking === undefined ? {} : { thinking }),
     ...(rawEffort === undefined ? {} : { defaultEffort: rawEffort as string }),
+    ...(thinkingEfforts === undefined ? {} : { thinkingEfforts }),
     ...(modalities === undefined ? {} : { inputModalities: modalities }),
   }
 }

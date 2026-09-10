@@ -55,7 +55,7 @@ ssh -L 3080:127.0.0.1:3080 user@host
 
 ![Command Code 连接、可选 ZDR 与账户额度](docs/images/plugin-card.png)
 
-目录默认折叠。**Fetch models** 打开按 Go / Pro / Provider+ 分组的 overlay，勾选后再加入。每一行可展开上下文、最大输出和官方 effort；拖动排序，垃圾桶删除。能力覆盖以实时 Provider API 和 2026-09-03 的 `command-code@1.44.0` 已发布模型目录快照为来源。保存的默认值：GLM-5.3 Flash 和所有 DeepSeek 用 `max`；Fable 5.1 用 `high`；新增 Qwen、Hy4、Gemini 使用各自最高档；Muse Spark 1.3 按前瞻策略用 `max`；GPT 对齐本地 Codex（Sol `high`、Terra `xhigh`、Luna `max`，其余 GPT 优先 `xhigh`，非法档位回退）。没有可选等级的模型（例如 LongCat 2.0）保留 provider 原生 reasoning，不伪造选择器。有效的已存覆盖优先。
+目录默认折叠。**Fetch models** 打开按 Go / Pro / Provider+ 分组的 overlay，勾选后再加入。每一行可展开上下文、最大输出和官方 effort；拖动排序，垃圾桶删除。能力覆盖以实时 Provider API 加官方 CLI 模型表为来源（DeepSeek V4.1 Flash 来自 `command-code@1.53.0`）。表里没有的 id 按同名从 models.dev 补齐（优先 OpenRouter）；两边都没有的保持未知，不做猜测。保存的默认值：GLM-5.3 Flash 和所有 DeepSeek 用 `max`；Fable 5.1 用 `high`；新增 Qwen、Hy4、Gemini 使用各自最高档；Muse Spark 1.3 按前瞻策略用 `max`；GPT 对齐本地 Codex（Sol `high`、Terra `xhigh`、Luna `max`，其余 GPT 优先 `xhigh`，非法档位回退）。没有可选等级的模型（例如 LongCat 2.0）保留 provider 原生 reasoning，不伪造选择器。有效的已存覆盖优先。
 
 ![可排序的 Command Code 模型目录与官方 effort 选项](docs/images/model-catalog.png)
 
