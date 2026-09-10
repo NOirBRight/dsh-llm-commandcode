@@ -47,6 +47,13 @@ import { en, zh } from './locales.ts'
 export const name = 'dsh-llm-commandcode-client'
 export const inject = ['slots', 'locale', 'connection']
 
+/**
+ * Grace window before the missing-owner warning fires: the LLM Providers owner registers its
+ * `settings.section` entry only once the settings snapshot is ready and the page is visible, so an
+ * immediate check always runs too early and reports a false alarm.
+ */
+const MISSING_OWNER_GRACE_MS = 15_000
+
 /** Register the Command Code card inside the shared LLM Providers section. */
 
 export function apply(ctx: Context): void {
@@ -152,16 +159,32 @@ export function apply(ctx: Context): void {
   })
   ctx.effect(() => {
     let warned = false
-    const check = (): void => {
-      const hasProvidersSection = ctx.slots.entries('settings.section').some(entry => entry.options.id === 'providers')
-      if (!hasProvidersSection && !warned) {
-        warned = true
-        console.warn(`[dsh-llm-providers-ui] LLM Providers page missing for card ${"llm-commandcode"}: install dsh-llm-providers-ui to show the card. Host route remains active.`)
-      }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const hasProvidersSection = (): boolean =>
+      ctx.slots.entries('settings.section').some(entry => entry.options.id === 'providers')
+    const cancelGrace = (): void => {
+      if (timer === undefined) return
+      clearTimeout(timer)
+      timer = undefined
     }
-    check()
-    const dispose = ctx.slots.subscribe('settings.section', check)
-    return dispose
+    const check = (): void => {
+      if (hasProvidersSection() || warned) return
+      warned = true
+      console.warn(`[dsh-llm-providers-ui] LLM Providers page missing for card ${"llm-commandcode"}: install dsh-llm-providers-ui to show the card. Host route remains active.`)
+    }
+    timer = setTimeout(() => {
+      cancelGrace()
+      check()
+    }, MISSING_OWNER_GRACE_MS)
+    const stop = ctx.slots.subscribe('settings.section', () => {
+      if (!hasProvidersSection()) return
+      cancelGrace()
+      warned = true
+    })
+    return () => {
+      cancelGrace()
+      stop()
+    }
   }, 'dsh-llm-providers-ui: missing owner diagnostic')
 
 }
