@@ -1,14 +1,14 @@
 import { Context } from '@deepseek-ai/cordis'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
-import LlmRuntime from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { LlmError } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { join } from 'node:path'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import * as CommandCode from '../src/index.ts'
-import { COMMANDCODE_RPC_CHANNEL } from '../src/client-contract.ts'
+import { COMMANDCODE_RPC_CHANNEL, COMMANDCODE_USAGE_ENDPOINT } from '../src/client-contract.ts'
 import { assemble } from './assemble.ts'
 import { anthropicTextEvents, closeMockServers, mockServer, openAITextEvents } from './mock-server.ts'
 
@@ -35,7 +35,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5.6-luna' }, apiKey: string | null = 'test-key', connection?: unknown): Promise<Context> {
+async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5.6-luna' }, apiKey: string | null = 'test-key', connection?: unknown, credentials?: unknown): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-commandcode-comp-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
@@ -52,9 +52,9 @@ async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5
   ].join('\n'))
   const ctx = new Context()
   context = ctx
-  ctx.provide('credentials', {
+  ctx.provide('credentials', (credentials ?? {
     resolve: async () => apiKey === null ? undefined : { value: apiKey },
-  } as never)
+  }) as never)
   if (connection !== undefined) ctx.provide('connection', connection as never)
   ctx.baseUrl = pathToFileURL(root).href + '/'
   await ctx.plugin(Loader)
@@ -71,6 +71,23 @@ async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5
   await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(configPath).href } })
   await ctx.loader.await()
   return ctx
+}
+
+type CapturedRpc = (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<{ ok: true, value: unknown } | { ok: false, error: { code: string, message: string } }>
+
+async function usageHandler(apiKey: string | null, credentials?: unknown): Promise<CapturedRpc> {
+  const captured: CapturedRpc[] = []
+  await load({ id: 'gpt-5.6-luna' }, apiKey, {
+    rpc: {
+      handle: (_channel: string, handler: unknown) => {
+        captured.push(handler as CapturedRpc)
+        return async () => undefined
+      },
+    },
+  }, credentials)
+  const handler = captured[0]
+  if (handler === undefined) throw new Error('Command Code did not register its Connection RPC handler')
+  return handler
 }
 
 describe('CommandCode composition', () => {
@@ -142,6 +159,33 @@ describe('CommandCode composition', () => {
     expect(handle).toHaveBeenCalledWith(COMMANDCODE_RPC_CHANNEL, expect.any(Function))
     await ctx.fiber.dispose()
     expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('answers a missing credential on the usage route as INVALID_CREDENTIAL', async () => {
+    const handler = await usageHandler(null)
+    await expect(handler(COMMANDCODE_USAGE_ENDPOINT, {}, new AbortController().signal)).resolves.toEqual({
+      ok: false,
+      error: { code: 'INVALID_CREDENTIAL', message: 'Command Code usage requires a configured API key', details: {} },
+    })
+  })
+
+  it('keeps a non-credential usage failure internal', async () => {
+    const handler = await usageHandler('test-key', {
+      resolve: async () => { throw new Error('credential store offline') },
+    })
+    await expect(handler(COMMANDCODE_USAGE_ENDPOINT, {}, new AbortController().signal)).resolves.toEqual({
+      ok: false,
+      error: { code: 'internal', message: 'credential store offline', details: {} },
+    })
+  })
+
+  it('maps credential failures to INVALID_CREDENTIAL and leaves other codes alone', () => {
+    expect(CommandCode.usageFailure(new LlmError('no DSH credential is configured', 'MISSING_CREDENTIAL'))).toMatchObject({ ok: false, error: { code: 'INVALID_CREDENTIAL' } })
+    expect(CommandCode.usageFailure(new LlmError('Command Code API key is blank', 'INVALID_CREDENTIAL'))).toMatchObject({ ok: false, error: { code: 'INVALID_CREDENTIAL' } })
+    expect(CommandCode.usageFailure(new LlmError('Command Code usage read aborted', 'ABORTED'))).toMatchObject({ ok: false, error: { code: 'ABORTED' } })
+    expect(CommandCode.usageFailure(new LlmError('Command Code usage endpoint failed', 'COMMANDCODE_USAGE_FAILED'))).toMatchObject({ ok: false, error: { code: 'COMMANDCODE_USAGE_FAILED' } })
+    expect(CommandCode.usageFailure(new Error('socket hang up'))).toMatchObject({ ok: false, error: { code: 'internal', message: 'socket hang up' } })
+    expect(CommandCode.usageFailure(undefined)).toMatchObject({ ok: false, error: { code: 'internal', message: 'Command Code usage read failed' } })
   })
 
   it('keeps the route registered and reports missing credentials at request time', async () => {

@@ -272,14 +272,9 @@ export async function readCommandCodeUsage(
   const failures: string[] = []
   const statuses: number[] = []
   const get = async (path: string): Promise<Record<string, unknown> | undefined> => {
+    let result: FetchResult
     try {
-      const result = await fetchJSON(base + path, apiKey, request.signal, fetchImpl)
-      if (result.status < 200 || result.status >= 300) {
-        statuses.push(result.status)
-        failures.push(path + ': HTTP ' + String(result.status))
-        return undefined
-      }
-      return result.body
+      result = await fetchJSON(base + path, apiKey, request.signal, fetchImpl)
     } catch (error: unknown) {
       if (request.signal?.aborted) throw new LlmError('Command Code usage read aborted', 'ABORTED', { cause: error })
       if (error instanceof LlmError && error.code === USAGE_FAILED) {
@@ -289,6 +284,21 @@ export async function readCommandCodeUsage(
       }
       return undefined
     }
+    // 401/403 reject the credential itself rather than one optional endpoint:
+    // recording them as a per-endpoint failure would leave the previous
+    // account's quota on screen, so the whole read fails as a credential failure.
+    if (result.status === 401 || result.status === 403) {
+      throw new LlmError(
+        path + ': HTTP ' + String(result.status) + '; the Command Code API key is unusable',
+        INVALID_CREDENTIAL_CODE,
+      )
+    }
+    if (result.status < 200 || result.status >= 300) {
+      statuses.push(result.status)
+      failures.push(path + ': HTTP ' + String(result.status))
+      return undefined
+    }
+    return result.body
   }
 
   const whoami = await get('/alpha/whoami')
