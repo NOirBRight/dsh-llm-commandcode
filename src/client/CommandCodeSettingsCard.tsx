@@ -10,7 +10,7 @@ import type {
   CommandCodeSaveResult,
   CommandCodeSettingsView,
 } from '../client-contract.ts'
-import { PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
+import { COMMANDCODE_SETTINGS_NAMESPACE, PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
@@ -410,7 +410,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
       const result = await props.fetchUsage()
       if (!live()) return
       if (result.status === 'unsupported') setUsage({ status: 'unsupported' })
-      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()); rememberHeadlineQuota('llm-commandcode', 'CommandCode', headlineQuotaOf(result.usage, t)) }
+      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()); rememberHeadlineQuota(COMMANDCODE_SETTINGS_NAMESPACE, 'CommandCode', headlineQuotaOf(result.usage, t)) }
     } catch (error: unknown) { if (live()) setUsage({ status: 'error', message: messageOf(error, t('quotaFailed')) }) }
   }
   // Header quota loads collapsed once the credential is ready; idle status dedups so expansion never refires.
@@ -461,7 +461,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const quotaWithheld = credential?.configured === false || usage.status === 'error' || usage.status === 'unsupported'
   // The verdict gates the entire header quota, not only the persisted fallback:
   // stale local lastUsage must not look fresh on error/unsupported either.
-  const headerQuota = quotaWithheld ? undefined : (liveQuota ?? headerQuotaFromCache(peekCachedUsage('llm-commandcode')))
+  const headerQuota = quotaWithheld ? undefined : (liveQuota ?? headerQuotaFromCache(peekCachedUsage(COMMANDCODE_SETTINGS_NAMESPACE)))
   if (snapshot.status !== 'ready' || draft === undefined) {
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
