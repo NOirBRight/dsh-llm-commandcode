@@ -12,6 +12,12 @@
 
 - A saved `defaultEffort` the current table no longer offers is dropped instead of failing config validation. Previously one unknown model made the whole provider card unreadable until the settings file was edited by hand.
 - Fetch no longer waits on a slow models.dev dump, and refreshes a warm overlay once when the listing contains an id no source describes.
+- Missing-owner diagnostic uses `COMMANDCODE_SETTINGS_NAMESPACE` and waits out a 15s grace window so a late `providers` section registration is not a false alarm.
+- Card `fetchUsage` purges the shared quota cache when the Host answers `INVALID_CREDENTIAL`, so a rejected or absent key cannot keep the previous account's headline.
+
+### Changed
+
+- DSH peer/dev declarations and verified runtimes include `0.1.5-rc.1` alongside Alpha.4 and `0.1.2-rc.1`.
 
 ## [0.1.21] - 2026-09-09
 

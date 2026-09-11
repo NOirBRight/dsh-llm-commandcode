@@ -114,7 +114,12 @@ export function apply(ctx: Context): void {
   }
   const fetchUsage: CommandCodeCardFace['fetchUsage'] = async () => {
     const result = await callPlugin(COMMANDCODE_USAGE_ENDPOINT, {})
-    if (!result.ok) throw new Error(result.error.message)
+    if (!result.ok) {
+      // Host answers a missing/unusable key as INVALID_CREDENTIAL; purge every
+      // bundle copy so the collapsed header cannot keep the previous account.
+      if (result.error.code === 'INVALID_CREDENTIAL') dropPersistedUsageKeys([COMMANDCODE_SETTINGS_NAMESPACE])
+      throw new Error(result.error.message)
+    }
     const decoded = decodeCommandCodeUsageReply(result.value)
     if (decoded === undefined) throw new Error(t('quotaFailed'))
     if (decoded.status === 'unsupported') return { status: 'unsupported' }
@@ -164,7 +169,7 @@ export function apply(ctx: Context): void {
     const check = (): void => {
       if (hasProvidersSection() || warned) return
       warned = true
-      console.warn(`[dsh-llm-providers-ui] LLM Providers page missing for card ${"llm-commandcode"}: install dsh-llm-providers-ui to show the card. Host route remains active.`)
+      console.warn(`[dsh-llm-providers-ui] LLM Providers page missing for card ${COMMANDCODE_SETTINGS_NAMESPACE}: install dsh-llm-providers-ui to show the card. Host route remains active.`)
     }
     // The owner registers the providers section only after the settings snapshot
     // arrives and the page becomes visible, so an immediate check always runs
