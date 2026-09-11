@@ -22,6 +22,15 @@ describe('Command Code browser contracts', () => {
     expect(decodeCommandCodeSettings(base)?.models[0]?.contextWindow).toBe(1_050_000)
     expect(decodeCommandCodeSettings({ ...base, models: [{ id: 'gpt', contextWindow: 0 }] })).toBeUndefined()
     expect(decodeCommandCodeSettings({ ...base, models: [{ id: 'gpt-5.6-luna', contextWindow: 1_050_000, reasoningEfforts: ['low'] }] })).toBeUndefined()
+    expect(decodeCommandCodeSettings({
+      ...base,
+      models: [{ id: 'deepseek/brand-new', contextWindow: 1_000_000, thinkingEfforts: ['low', 'high'], defaultEffort: 'high', inputModalities: ['text', 'image'] }],
+    })?.models[0]).toMatchObject({
+      id: 'deepseek/brand-new',
+      thinkingEfforts: ['low', 'high'],
+      defaultEffort: 'high',
+      inputModalities: ['text', 'image'],
+    })
     expect(decodeCommandCodeSettings({ ...base, providerBaseURL: 'https://evil.example/provider/v1' })).not.toHaveProperty('providerBaseURL')
   })
 

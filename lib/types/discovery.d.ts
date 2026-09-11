@@ -1,14 +1,17 @@
 /** Live Command Code model catalog discovery. */
 import type { CommandCodeDiscoveryRequest } from './client-contract.ts';
 import type { CommandCodeModelConfig } from './types.ts';
+import type { CommandCodeModelsDevOverlay } from './models-dev.ts';
 export declare const MAX_DISCOVERY_BYTES: number;
 export declare const DISCOVERY_TIMEOUT_MS = 30000;
 /** Discovery has no credential or endpoint input; only cancellation is caller-controlled. */
 export interface CommandCodeDiscoveryOptions extends CommandCodeDiscoveryRequest {
 }
 export declare function protocolForModel(id: string): 'openai-completions' | 'anthropic-messages';
+/** True when the CLI snapshot already knows vision, efforts, or native reasoning. */
+export declare function hasCommandCodeCapabilitySnapshot(id: string): boolean;
 /** Parse the provider's OpenAI-shaped model list without inventing capacity. */
-export declare function parseCommandCodeModels(value: unknown): {
+export declare function parseCommandCodeModels(value: unknown, overlay?: CommandCodeModelsDevOverlay): {
     models: CommandCodeModelConfig[];
     warnings: string[];
 };

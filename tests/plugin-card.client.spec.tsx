@@ -185,4 +185,22 @@ describe('plugin-card layout (opencode baseline)', () => {
     )
     expect(screen.queryByLabelText(en.defaultThinking)).toBeNull()
   })
+
+  it('toggles explicit model sort mode while keeping model input state', () => {
+    const customSettings: CommandCodeSettingsView = { ...settings, models: [{ id: 'b' }, { id: 'a' }] }
+    render(<CommandCodeSettingsCard {...props({}, customSettings)} />)
+    fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Model catalog' }))
+    const first = screen.getByLabelText('Model ID 1') as HTMLInputElement
+    fireEvent.change(first, { target: { value: 'b-edited' } })
+    expect(first.value).toBe('b-edited')
+    expect(screen.queryByRole('button', { name: en.moveUp + ': b-edited' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: en.sortModels }))
+    expect(screen.getByRole('button', { name: en.doneSorting })).toBeTruthy()
+    expect((screen.getByLabelText('Model ID 1') as HTMLInputElement).value).toBe('b-edited')
+    expect(screen.getByRole('button', { name: en.moveUp + ': b-edited' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.doneSorting }))
+    expect(screen.getByRole('button', { name: en.sortModels })).toBeTruthy()
+    expect((screen.getByLabelText('Model ID 1') as HTMLInputElement).value).toBe('b-edited')
+  })
 })

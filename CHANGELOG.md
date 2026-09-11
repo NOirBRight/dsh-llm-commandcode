@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.1.22] - 2026-09-10
+
+### Added
+
+- DeepSeek V4.1 Flash: vision plus `low`/`high`/`max` (default `max`), from the official `command-code@1.53.0` model table.
+- Fill ids the CLI table does not describe from models.dev same-id rows, preferring OpenRouter; ids no source describes stay unknown rather than guessed.
+- Persisted `thinkingEfforts` so an overlay-filled model keeps its effort selector across a save.
+
+### Fixed
+
+- A saved `defaultEffort` the current table no longer offers is dropped instead of failing config validation. Previously one unknown model made the whole provider card unreadable until the settings file was edited by hand.
+- Fetch no longer waits on a slow models.dev dump, and refreshes a warm overlay once when the listing contains an id no source describes.
+- Missing-owner diagnostic uses `COMMANDCODE_SETTINGS_NAMESPACE` and waits out a 15s grace window so a late `providers` section registration is not a false alarm.
+- Card `fetchUsage` purges the shared quota cache when the Host answers `INVALID_CREDENTIAL`, so a rejected or absent key cannot keep the previous account's headline.
+
+### Changed
+
+- DSH peer/dev declarations and verified runtimes include `0.1.5-rc.1` alongside Alpha.4 and `0.1.2-rc.1`.
+
+## [0.1.21] - 2026-09-09
+
+- Advertise image input for `xai/grok-4.6`.
+
+## [0.1.20] - 2026-09-07
+
+### Changed
+
+- Adopt the shared provider-ui header from `dsh-llm-providers-ui` 0.1.10; remove the per-provider header fork.
+- Header quota loads collapsed with idle dedup so expansion never refires; a failed read shows a truthful unavailable dash, never a fabricated percent.
+- Development dependency now points at the final `dsh-llm-providers-ui` 0.1.10 release URL with pinned integrity.
+
+## [0.1.19] - 2026-09-03
+
+### Changed
+
+- DSH compatibility declarations cover the verified Alpha.4 and rc.1 runtimes.
+- Unknown runtimes warn once and use the normal best-effort mount path; only reproduced failures may be blocklisted.
+
+
+## 0.1.18 - 2026-09-03
+
+- Add Fable 5.1, DeepSeek V4 Flash Fast, Qwen 3.8, LongCat 2.0, Hy4 Preview, Gemini 3.8 Flash, and Muse Spark 1.3 models from the live Provider API and `command-code@1.44.0` capability catalog.
+- Correct current model context and vision metadata while preserving explicit names, context overrides, and existing GPT/Grok effort tables and defaults.
+- Configure both Muse Spark 1.3 routes for `low/medium/high/xhigh/max` with default `max`; retain native LongCat reasoning without inventing an effort selector.
+
 ## 0.1.15
 
 - Settings → LLM Providers: drag cards to reorder; chat picker follows `llm-providers.order` via dsh-llm-providers-ui.

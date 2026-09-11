@@ -6,6 +6,14 @@ Command Code Provider API chat for DeepSeek Harness. This plugin is a separate p
 
 The package root exposes the Cordis plugin contract. The same artifact exports `./client`, which contributes the Command Code card under Settings → LLM Providers.
 
+## Compatibility
+
+Verified runtimes are DeepSeek Harness `0.1.2-alpha.4`, `0.1.2-rc.1`, and `0.1.5-rc.1` on Cordis `4.0.2`; this record is evidence, not an allowlist.
+
+Unknown newer runtimes are attempted on a best-effort basis after one warning, and the plugin keeps its normal mount path.
+
+A reproduced failure is blocklisted only afterward; see the [compatibility records](package.json) for the affected version, reason, and evidence.
+
 
 ## LLM Providers UI ownership
 
@@ -13,17 +21,19 @@ The **LLM Providers** Settings page (`settings.section` `id: providers` with chi
 
 - This plugin contributes only its keyed card (`key: llm-commandcode`) and its Host `llm` route; it does not install the page or the shared `llm-providers` namespace. Load order with the owner does not matter.
 - Without the owner (Headless or Web without `dsh-llm-providers-ui`): the Host model route `commandcode` still works; in Web the Providers page and this card are omitted and the browser console warns that the owner is missing. A Web release composition test rejects a bundle graph that ships provider cards without the owner.
-- The nav globe glyph is a temporary `alpha.1` DOM adapter owned only by `dsh-llm-providers-ui` (`src/client/nav-icon.ts`); this plugin does not ship that adapter.
+- The nav globe glyph is a temporary Alpha.4 DOM adapter owned only by `dsh-llm-providers-ui` (`src/client/nav-icon.ts`); this plugin does not ship that adapter.
 
 Install `dsh-llm-providers-ui` explicitly in the profile alongside provider plugins (see that package's `cordis.patch.yml`).
 
-
 ## Installation
 
-DeepSeek Harness `0.1.2-alpha.1` or later is required. Install directly from GitHub:
+Verified on DeepSeek Harness `0.1.2-alpha.4`, `0.1.2-rc.1`, and `0.1.5-rc.1`. Install directly from GitHub:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-commandcode#v0.1.16
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/dsh-llm-commandcode-0.1.22.tgz
 dsh web
 ~~~
 
@@ -55,7 +65,7 @@ The only visible Provider API URL is the fixed, read-only official `https://api.
 
 ![Command Code connection, optional ZDR, and account quota](docs/images/plugin-card.png)
 
-The catalog starts collapsed. **Fetch models** opens an overlay grouped by Go / Pro / Provider+ access, then adds the selection. Each row can expand for context, max output, and official effort options; drag reorders, trash removes. Saved defaults: GLM-5.3 Flash and all DeepSeek models use `max`; Muse uses its highest published level; GPT follows the local Codex policy (Sol `high`, Terra `xhigh`, Luna `max`, other GPT prefer `xhigh` with a valid-level fallback). A saved valid override wins.
+The catalog starts collapsed. **Fetch models** opens an overlay grouped by Go / Pro / Provider+ access, then adds the selection. Each row can expand for context, max output, and official effort options; drag reorders, trash removes. The capability overlay is sourced from the live Provider API plus the official CLI model table (`command-code@1.53.0` for DeepSeek V4.1 Flash). Ids that table does not describe are filled from models.dev same-id rows, preferring OpenRouter; an id neither source describes stays unknown rather than guessed. Saved defaults: GLM-5.3 Flash and all DeepSeek models use `max`; Fable 5.1 uses `high`; the new Qwen, Hy4, and Gemini entries use their highest listed level; Muse Spark 1.3 uses the forward `max` level; GPT follows the local Codex policy (Sol `high`, Terra `xhigh`, Luna `max`, other GPT prefer `xhigh` with a valid-level fallback). A saved valid override wins. Models without selectable efforts, such as LongCat 2.0, keep provider-native reasoning without a fabricated selector.
 
 ![Sortable Command Code model catalog with official effort options](docs/images/model-catalog.png)
 
@@ -89,6 +99,8 @@ The authenticated Connection session protects these management operations. Setti
 
 Quota is separate from chat. The Host best-effort-calls the unofficial account routes used by the official CLI (`/alpha/whoami`, `/alpha/billing/credits`, `/alpha/billing/subscriptions`, `/alpha/usage/summary`) on `https://api.commandcode.ai`. Failures never block chat. Set `usageEnabled: false` to hide the panel.
 
+The collapsed header falls back to the last successful quota from the shared browser cache while its credential is configured; storing a new key purges the cache in every bundle copy, even without providerDirectory; so does a usage read the Host answers as `INVALID_CREDENTIAL`.
+
 The card shows the account name, plan, monthly / purchased / free credits, 5-hour and weekly windows, and optional period cost/tokens plus a refresh time.
 
 ## Verification
@@ -103,42 +115,38 @@ pnpm run lab:check   # existing lab GUI on 127.0.0.1:3082
 
 Provider API documentation: https://commandcode.ai/docs/provider
 
+## Release installation
 
-## Release installation (Latest)
-
-Command Code Provider API chat, model discovery, credentials, and quota reporting. The release artifact targets DeepSeek Harness 0.1.2-alpha.1 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
+Command Code Provider API chat, model discovery, credentials, and quota reporting. The release artifact targets DeepSeek Harness 0.1.2-alpha.4 through 0.1.5-rc.1 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
 
 The dsh-llm-providers-ui package owns the LLM Providers page, navigation, and shared order store. This package owns only its provider card, models, credentials, and Host route. Install the Owner first for Web; headless Host routing works without the Owner.
 
-Owner (Latest):
+Latest (Owner + this plugin; required together on Web):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui.tgz
-~~~
-
-Provider (Latest):
-
-~~~sh
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode-0.1.22.tgz
 ~~~
 
 Fixed versions (reproducible):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.2/dsh-llm-providers-ui.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.16/dsh-llm-commandcode.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/dsh-llm-commandcode-0.1.22.tgz
 ~~~
 
 Update, uninstall, and verify:
 
 ~~~sh
-# Update to the latest Release
+# Reinstall Owner + this plugin (fixed tags)
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/dsh-llm-commandcode-0.1.22.tgz
 # Verify the loaded version
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -148,6 +156,6 @@ dsh plugin --profile web remove dsh-llm-commandcode
 
 Configuration: use the plugin section in Settings for Web UI plugins, or the profile dsh.profile.bundles entry for Host-only plugins. Start with this README's minimal YAML/JSON example and provide credentials/backend addresses explicitly.
 
-Rollback: rerun the fixed v0.1.16 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
+Rollback: rerun the fixed v0.1.22-015rc1d command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.1.16](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.16) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.16/SHA256SUMS).
+Release and integrity: [v0.1.22-015rc1d](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.22-015rc1d) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/SHA256SUMS).

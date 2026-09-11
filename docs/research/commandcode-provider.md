@@ -16,6 +16,8 @@ The live unauthenticated model response sampled on this date was OpenAI-shaped w
 
 ## Effort metadata
 
+Update 2026-09-10: the same CLI model table now ships DeepSeek V4.1 Flash. Source artifact https://registry.npmjs.org/command-code/-/command-code-1.53.0.tgz — `dist/cli.mjs` names `deepseek/deepseek-v4.1-flash` with `inputModalities:["text","image"]`, `reasoning:!0`, `reasoningEfforts:["low","high","max"]`, `contextWindow:1e6`; the bundled `dist/bundled/command-code-knowledge/reference/models.md` row agrees (`1M`, `low, high, max`, vision, "Go and above"). The public models endpoint lists the id with `context_length: 1000000` and still carries no modality or effort fields. Extracted with `npm pack command-code@1.53.0` plus a text scan of the two files; no credential was read.
+
 The public models endpoint does not expose effort levels. The official command-code@1.36.0 CLI bundle carries a hard-coded model table with reasoningEfforts. The plugin snapshots that exact table and derives selectable levels by model id at runtime; no configurable or persisted effort list can override it. Current examples: z-ai/glm-5.3-flash and zai-org/GLM-5.3 use low/high/max; DeepSeek V4 Pro/Flash/Vision use high/max; Claude Sonnet/Opus and GPT-5.6 use low/medium/high/xhigh/max. The CLI does not publish a separate default field, so the plugin materializes explicit deployment defaults: GLM-5.3 Flash and all DeepSeek models use max; Muse models use their highest supported level; GPT defaults match the local Codex plugin (Sol high, Terra xhigh, Luna max, other GPT models prefer xhigh with a valid-level fallback).
 
 Source artifact: https://registry.npmjs.org/command-code/-/command-code-1.36.0.tgz

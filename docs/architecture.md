@@ -14,6 +14,12 @@ The client contributes only the keyed `settings.provider.item` entry with key `l
 
 The Provider model endpoint is the runtime source for metadata. context_length is copied exactly into the catalog and then into LlmResolvedModelInfo.context.contextWindow. Discovery and resolution use the same catalog generation. A visible user override is the only normal way to replace it; missing discovery metadata is never silently changed to 1M.
 
+## Capability overlay seam
+
+The Provider model endpoint lists ids and `context_length` only; it carries no modality, effort, or default-thinking fields. Two sources fill that gap, in priority order: the official `command-code` CLI model table, snapshotted in `capability-catalog.ts` and `reasoning-catalog.ts`, and — for ids the table does not describe — the public models.dev document, read by the Host-only `models-dev.ts` overlay and matched on the exact same id (OpenRouter preferred, then other providers). An id neither source describes keeps text-only input and no effort selector: unknown is never upgraded to a guess.
+
+The overlay is a Host module and never enters the client bundle. Its parsed result is cached in memory and on disk for a day, and Fetch re-reads it once when the listing contains an id no source describes. The persisted `thinkingEfforts` field on a model row is how an overlay-filled selector survives a settings save.
+
 ## Quota seam
 
 The Provider API documents model listing and model calls, not account balance. The quota reader is a separate Host module. It calls the account routes currently used by the official Command Code CLI and returns a redacted snapshot through the loopback Command Connection channel. It is advisory: quota availability cannot affect provider registration or chat.

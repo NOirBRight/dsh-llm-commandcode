@@ -32,6 +32,14 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
     expect(models[1]?.compat).toMatchObject({ forceAdaptiveThinking: true })
   })
 
+  it('exposes an empty modelErrors map for the host modelOf path', () => {
+    const profile = createCommandCodePiAiProfile(options())
+    // Mirrors PiAiAdapter.modelOf: unconditional profile.modelErrors.get(model).
+    expect(profile.modelErrors).toBeInstanceOf(Map)
+    expect(profile.modelErrors.size).toBe(0)
+    expect(profile.modelErrors.get('gpt-5.6-luna')).toBeUndefined()
+  })
+
   it('resolves exact context and selectable/default effort metadata', async () => {
     const connection = options()
     const adapter = new CommandCodeAdapter({ options: () => connection, resolveApiKey: async () => 'key' })
@@ -48,6 +56,27 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
         ],
       },
     })
+  })
+
+  it('projects official modalities and new-model effort metadata', () => {
+    const connection = resolveAdapterOptions({
+      apiKeyEnv: 'COMMANDCODE_API_KEY',
+      models: [
+        { id: 'Qwen/Qwen3.8-Max-0902', contextWindow: 1_000_000 },
+        { id: 'meta/muse-spark-1.3-contributor', contextWindow: 1_048_576 },
+        { id: 'meituan/LongCat-2.0:free', contextWindow: 1_048_576, thinking: true },
+      ],
+    })
+    const models = createCommandCodePiAiProfile(connection).piProvider.getModels()
+    expect(models.find(model => model.id === 'Qwen/Qwen3.8-Max-0902')).toMatchObject({
+      input: ['text', 'image'],
+      thinkingLevelMap: { low: 'low', medium: 'medium', xhigh: 'xhigh' },
+    })
+    expect(models.find(model => model.id === 'meta/muse-spark-1.3-contributor')).toMatchObject({
+      input: ['text', 'image'],
+      thinkingLevelMap: { max: 'max' },
+    })
+    expect(models.find(model => model.id === 'meituan/LongCat-2.0:free')).toMatchObject({ reasoning: false, input: ['text'] })
   })
 
   it('has no configurable provider endpoint surface', () => {

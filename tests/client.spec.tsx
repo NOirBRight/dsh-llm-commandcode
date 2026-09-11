@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommandCodeSettingsCard } from '../src/client/CommandCodeSettingsCard.tsx'
 import { en } from '../src/client/locales.ts'
 import { catalogStyles } from '../src/client/model-catalog-ui.tsx'
-import type { CommandCodeSettingsView } from '../src/client-contract.ts'
+import type { CommandCodeModelConfig, CommandCodeSettingsView } from '../src/client-contract.ts'
 import type { CommandCodeSettingsCardProps } from '../src/client/CommandCodeSettingsCard.tsx'
 
 afterEach(() => cleanup())
@@ -81,7 +81,13 @@ describe('CommandCodeSettingsCard', () => {
     expect((screen.getByRole('textbox', { name: 'Provider API URL' }) as HTMLInputElement).disabled).toBe(true)
     await waitFor(() => expect(screen.getByText(/demo-user/)).toBeTruthy())
     expect(screen.getByText(/\$15\.00/)).toBeTruthy()
-    expect(screen.getByText(/\$3\.00 \/ \$10\.00/)).toBeTruthy()
+    for (const meter of screen.getAllByRole('meter', { name: en.fiveHour })) {
+      expect(meter.getAttribute('aria-valuenow')).toBe('70')
+    }
+    for (const meter of screen.getAllByRole('meter', { name: en.weekly })) {
+      expect(meter.getAttribute('aria-valuenow')).toBe('60')
+    }
+    expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.getByText(/Provider \(active\)/)).toBeTruthy()
   })
 
@@ -105,6 +111,28 @@ describe('CommandCodeSettingsCard', () => {
     expect(saveConfiguration).toHaveBeenCalledWith({ ...settings, models: [{ ...settings.models[0]!, defaultEffort: 'max' }] })
   })
 
+  it('keeps models.dev overlay efforts when the row is saved', async () => {
+    const overlayModel = {
+      id: 'vendor/future-model',
+      contextWindow: 128000,
+      thinking: true,
+      thinkingEfforts: ['low', 'high'],
+      defaultEffort: 'high',
+    }
+    const current = { ...settings, models: [overlayModel] }
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView) => ({ settings: next, revision: 2 }))
+    render(<CommandCodeSettingsCard {...props({ saveConfiguration }, current)} />)
+    fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
+    fireEvent.change(screen.getByPlaceholderText('Enter Command Code API key'), { target: { value: 'new-secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(saveConfiguration).toHaveBeenCalledTimes(1))
+    expect(saveConfiguration.mock.calls[0]?.[0]?.models[0]).toMatchObject({
+      id: 'vendor/future-model',
+      thinkingEfforts: ['low', 'high'],
+      defaultEffort: 'high',
+    })
+  })
+
   it('keeps public discovery credential-free and endpoint-free', async () => {
     const storeApiKey = vi.fn(async () => {})
     const discoverModels = vi.fn(async () => ({ models: [{ id: 'new-model', contextWindow: 1048576, inputModalities: ['text'] }], warnings: [] }))
@@ -115,5 +143,52 @@ describe('CommandCodeSettingsCard', () => {
     await waitFor(() => expect(discoverModels).toHaveBeenCalled())
     expect(storeApiKey).not.toHaveBeenCalled()
     expect(discoverModels.mock.calls[0]?.[0]).toEqual({})
+  })
+
+  it('refreshes official capabilities while retaining explicit name and context override', async () => {
+    const current: CommandCodeSettingsView = {
+      ...settings,
+      models: [{
+        id: 'qwen/qwen3.8-max-0902',
+        name: 'My Qwen',
+        contextWindow: 900_000,
+        contextWindowOverride: 123_456,
+        inputModalities: ['text'],
+      }],
+    }
+    let adopt: ((models: readonly CommandCodeModelConfig[]) => void) | undefined
+    const beginModelPicker = vi.fn((_picked: ReadonlySet<string>, onAdopt: (models: readonly CommandCodeModelConfig[]) => void) => {
+      adopt = onAdopt
+    })
+    const completeModelPicker = vi.fn()
+    const discovered: CommandCodeModelConfig = {
+        id: 'qwen/qwen3.8-max-0902',
+        name: 'Official Qwen',
+        contextWindow: 1_000_000,
+        inputModalities: ['text', 'image'],
+    }
+    const discoverModels = vi.fn(async () => ({
+      models: [discovered],
+      warnings: [],
+    }))
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView) => ({ settings: next, revision: 2 }))
+    render(<CommandCodeSettingsCard {...props({}, current)} beginModelPicker={beginModelPicker} completeModelPicker={completeModelPicker} discoverModels={discoverModels} saveConfiguration={saveConfiguration} />)
+    fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Model catalog' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from official catalog' }))
+    await waitFor(() => expect(completeModelPicker).toHaveBeenCalledWith([discovered]))
+    adopt?.([discovered])
+    await waitFor(() => expect(screen.getByDisplayValue('My Qwen')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(saveConfiguration).toHaveBeenCalledTimes(1))
+    expect(saveConfiguration).toHaveBeenCalledWith(expect.objectContaining({
+      models: [expect.objectContaining({
+        id: 'qwen/qwen3.8-max-0902',
+        name: 'My Qwen',
+        contextWindow: 1_000_000,
+        contextWindowOverride: 123_456,
+        inputModalities: ['text', 'image'],
+      })],
+    }))
   })
 })

@@ -1,4 +1,4 @@
-/** Browser-safe effort catalog extracted from official command-code@1.36.0. */
+/** Browser-safe effort catalog extracted from official command-code@1.44.0. */
 
 import type { CommandCodeModelConfig } from './types.ts'
 
@@ -13,6 +13,7 @@ const LOW_MEDIUM_XHIGH = ['low', 'medium', 'xhigh'] as const
 const OFFICIAL_EFFORTS: Readonly<Record<string, readonly string[]>> = {
   'claude-sonnet-5': ALL,
   'claude-sonnet-4-6': ALL,
+  'claude-fable-5-1': ALL,
   'claude-fable-5': ALL,
   'claude-opus-5': ALL,
   'claude-opus-4-8': ALL,
@@ -28,6 +29,9 @@ const OFFICIAL_EFFORTS: Readonly<Record<string, readonly string[]>> = {
   'deepseek/deepseek-v4-pro': HIGH_MAX,
   'deepseek/deepseek-v4-flash': HIGH_MAX,
   'deepseek/deepseek-v4-flash-vision-exp': HIGH_MAX,
+  'deepseek/deepseek-v4-flash-fast': LOW_HIGH_MAX,
+  'deepseek/deepseek-v4.1-flash': LOW_HIGH_MAX,
+  'moonshotai/kimi-k3': LOW_HIGH_MAX,
   'moonshotai/kimi-k2.7-code': LOW_HIGH_MAX,
   'moonshotai/kimi-k2.7-code-highspeed': LOW_HIGH_MAX,
   'moonshotai/kimi-k2.6': LOW_HIGH_MAX,
@@ -40,6 +44,7 @@ const OFFICIAL_EFFORTS: Readonly<Record<string, readonly string[]>> = {
   'xiaomi/mimo-v2.5-pro': LOW_MEDIUM_XHIGH,
   'xiaomi/mimo-v2.5': LOW_MEDIUM_XHIGH,
   'qwen/qwen3.8-max': LOW_MEDIUM_XHIGH,
+  'qwen/qwen3.8-max-0902': LOW_MEDIUM_XHIGH,
   'qwen/qwen3.8-27b': LOW_MEDIUM_XHIGH,
   'qwen/qwen3.8-flash': LOW_MEDIUM_XHIGH,
   'stepfun/step-3.7-flash': THREE,
@@ -47,6 +52,7 @@ const OFFICIAL_EFFORTS: Readonly<Record<string, readonly string[]>> = {
   'tencent/hy3': THREE,
   'tencent/hy3-paid': THREE,
   'google/gemini-3.7-flash': THREE,
+  'google/gemini-3.8-flash': THREE,
   'google/gemini-3.6-flash': THREE,
   'google/gemini-3.5-flash': THREE,
   'google/gemini-3.5-flash-lite': THREE,
@@ -57,6 +63,11 @@ const OFFICIAL_EFFORTS: Readonly<Record<string, readonly string[]>> = {
   'meta/muse-spark-1.2-contributor': FOUR,
   'xai/grok-4.5': THREE,
   'xai/grok-4.6': FOUR,
+  'tencent/hy4-preview': THREE,
+  // Command Code currently accepts max for both Muse Spark 1.3 routes even
+  // though the 1.44.0 CLI table leaves their effort column empty.
+  'meta/muse-spark-1.3': ALL,
+  'meta/muse-spark-1.3-contributor': ALL,
 }
 
 
@@ -66,12 +77,22 @@ const DEFAULT_EFFORTS: Readonly<Record<string, string>> = {
   'z-ai/glm-5.3-flash': 'max',
   'zai-org/glm-5.3': 'max',
   'zai-org/glm-5.2': 'max',
+  'claude-fable-5-1': 'high',
+  'moonshotai/kimi-k3': 'high',
+  'qwen/qwen3.8-max-0902': 'xhigh',
   'gpt-5.6-sol': 'high',
   'gpt-5.6-terra': 'xhigh',
   'gpt-5.6-luna': 'max',
 }
 
 const EFFORT_RANK = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+const CANON_EFFORTS = new Set<string>(EFFORT_RANK)
+
+/** Map a models.dev / wire effort token onto the plugin's level ids. */
+export function canonCommandCodeEffort(value: string): string | undefined {
+  const key = value.toLowerCase()
+  return CANON_EFFORTS.has(key) ? key : undefined
+}
 
 function highestEffort(efforts: readonly string[]): string | undefined {
   return [...EFFORT_RANK].reverse().find(effort => efforts.includes(effort)) ?? efforts.at(-1)
@@ -79,7 +100,7 @@ function highestEffort(efforts: readonly string[]): string | undefined {
 
 /** Return a valid explicit default; every model with efforts gets one. */
 export function defaultEffortForCommandCodeModel(
-  model: Pick<CommandCodeModelConfig, 'id' | 'defaultEffort'>,
+  model: Pick<CommandCodeModelConfig, 'id' | 'defaultEffort' | 'thinkingEfforts'>,
 ): string | undefined {
   const efforts = effortsForCommandCodeModel(model)
   if (efforts.length === 0) return undefined
@@ -98,6 +119,8 @@ export const EFFORT_LABELS: Readonly<Record<string, string>> = {
   low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max',
 }
 
-export function effortsForCommandCodeModel(model: Pick<CommandCodeModelConfig, 'id'>): readonly string[] {
-  return OFFICIAL_EFFORTS[model.id.toLowerCase()] ?? []
+export function effortsForCommandCodeModel(
+  model: Pick<CommandCodeModelConfig, 'id' | 'thinkingEfforts'>,
+): readonly string[] {
+  return OFFICIAL_EFFORTS[model.id.toLowerCase()] ?? model.thinkingEfforts ?? []
 }
