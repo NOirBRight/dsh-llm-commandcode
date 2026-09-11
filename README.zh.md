@@ -21,9 +21,9 @@ DeepSeek Harness 的 Command Code Provider API 插件。独立 provider 路由�
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1d/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1c/dsh-llm-commandcode-0.1.22.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/dsh-llm-commandcode-0.1.22.tgz
 dsh web
 ~~~
 
@@ -119,35 +119,32 @@ Command Code Provider API chat, model discovery, credentials, and quota reportin
 
 LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
 
-Owner（0.1.12-015rc1d 冻结 — <https://github.com/NOirBRight/dsh-llm-providers-ui/releases/tag/v0.1.12-015rc1d>）：
+Latest（Owner + 本插件；Web 必须一起装）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1d/dsh-llm-providers-ui-0.1.12.tgz
-~~~
-
-本 Provider（0.1.22-015rc1c 候选 — <https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.22-015rc1c>）：
-
-~~~sh
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1c/dsh-llm-commandcode-0.1.22.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode-0.1.22.tgz
 ~~~
 
 固定版本（可复现）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1d/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1c/dsh-llm-commandcode-0.1.22.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/dsh-llm-commandcode-0.1.22.tgz
 ~~~
 
 更新、卸载与验证：
 
 ~~~sh
-# 重装本候选
+# 更新 Owner + 本插件到 Latest
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1c/dsh-llm-commandcode-0.1.22.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode-0.1.22.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -157,6 +154,6 @@ dsh plugin --profile web remove dsh-llm-commandcode
 
 配置入口：Web 使用「设置」中的本插件页面；Host-only 插件使用 profile 的 dsh.profile.bundles 配置。先复制本 README 的最小 YAML/JSON 示例，再填写凭据或后端地址。
 
-回滚：重新执行固定版本 v0.1.22-015rc1c 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
+回滚：重新执行固定版本 v0.1.22-015rc1d 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.1.22-015rc1c](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.22-015rc1c) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1c/SHA256SUMS)。
+Release 与完整性：[v0.1.22-015rc1d](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.22-015rc1d) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/SHA256SUMS)。
