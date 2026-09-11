@@ -159,30 +159,24 @@ export function apply(ctx: Context): void {
   })
   ctx.effect(() => {
     let warned = false
-    let timer: ReturnType<typeof setTimeout> | undefined
     const hasProvidersSection = (): boolean =>
       ctx.slots.entries('settings.section').some(entry => entry.options.id === 'providers')
-    const cancelGrace = (): void => {
-      if (timer === undefined) return
-      clearTimeout(timer)
-      timer = undefined
-    }
     const check = (): void => {
       if (hasProvidersSection() || warned) return
       warned = true
       console.warn(`[dsh-llm-providers-ui] LLM Providers page missing for card ${"llm-commandcode"}: install dsh-llm-providers-ui to show the card. Host route remains active.`)
     }
-    timer = setTimeout(() => {
-      cancelGrace()
-      check()
-    }, MISSING_OWNER_GRACE_MS)
+    // The owner registers the providers section only after the settings snapshot
+    // arrives and the page becomes visible, so an immediate check always runs
+    // ahead of it: grant a grace period and cancel the warning on registration.
+    const timer = setTimeout(check, MISSING_OWNER_GRACE_MS)
     const stop = ctx.slots.subscribe('settings.section', () => {
       if (!hasProvidersSection()) return
-      cancelGrace()
+      clearTimeout(timer)
       warned = true
     })
     return () => {
-      cancelGrace()
+      clearTimeout(timer)
       stop()
     }
   }, 'dsh-llm-providers-ui: missing owner diagnostic')
