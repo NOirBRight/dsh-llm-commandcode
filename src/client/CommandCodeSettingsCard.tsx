@@ -488,7 +488,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
                 <input style={rowInputStyle} value={item.name ?? ''} placeholder={t('modelName')} aria-label={t('modelName') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { name: event.target.value || undefined })} />
                 <button type="button" style={iconButtonStyle} aria-label={t('modelDetails') + ': ' + modelLabel} aria-expanded={expanded} title={t('modelDetails')} onClick={() => toggleModel(item.rowId)}><IconChevron open={expanded} /></button>
                 <button type="button" style={iconButtonStyle} aria-label={t('remove') + ' ' + modelLabel} title={t('remove')} disabled={disabled} onClick={() => removeModel(index)}><IconTrash /></button>
-                {expanded ? <ModelDetails model={item} disabled={disabled} t={t} patch={patch => patchModel(index, patch)} /> : null}
+                {expanded ? modelExtra(item, index) : null}
               </div>
             }} />
             <button type="button" style={{ ...buttonStyle, alignSelf: 'flex-start' }} disabled={disabled} onClick={() => { const item: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }; patchDraft({ models: [...draft.models, item] }); setExpandedModels(current => new Set(current).add(item.rowId)) }}>{t('addModel')}</button>    </>
@@ -514,6 +514,11 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   )
 
 
+  /** Provider-specific fields for one expanded model row; shared by both layouts. */
+  const modelExtra = (item: ModelDraft, index: number): ReactNode => (
+    <ModelDetails model={item} disabled={disabled} t={t} patch={patch => patchModel(index, patch)} />
+  )
+
   // Prototype C detail: the shared template owns the layout, this card owns CommandCode's data.
   const SharedDetail = props.template
   const detailCopy = props.copy
@@ -524,6 +529,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
         <SharedDetail
           name={title}
           role="llm"
+          mark={<BrandMark />}
           copy={detailCopy}
           notice={t('description')}
           account={{
@@ -545,7 +551,37 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
             sortDisabled: disabled || draft.models.length < 2,
             onChooseFromAccount: () => { void fetchModels() },
             chooseDisabled: disabled || fetching,
-            list: modelsList,
+            items: draft.models.map(model => ({
+              rowId: model.rowId,
+              id: model.id,
+              ...(model.name === undefined ? {} : { name: model.name }),
+            })),
+            expanded: [...expandedModels],
+            onPatch: (rowId, patch) => {
+              const index = draft.models.findIndex(model => model.rowId === rowId)
+              if (index >= 0) patchModel(index, patch)
+            },
+            onRemove: (rowId) => {
+              const index = draft.models.findIndex(model => model.rowId === rowId)
+              if (index >= 0) removeModel(index)
+            },
+            onToggle: (rowId) => { toggleModel(rowId) },
+            onReorder: (rowIds) => {
+              const byId = new Map(draft.models.map(model => [model.rowId, model]))
+              const next = rowIds.map(rowId => byId.get(rowId)).filter((model): model is ModelDraft => model !== undefined)
+              if (next.length === draft.models.length) patchDraft({ models: next })
+            },
+            onAdd: () => {
+              const item: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }
+              patchDraft({ models: [...draft.models, item] })
+              setExpandedModels(current => new Set(current).add(item.rowId))
+            },
+            addDisabled: disabled,
+            extra: (row) => {
+              const index = draft.models.findIndex(model => model.rowId === row.rowId)
+              const model = draft.models[index]
+              return index < 0 || model === undefined ? null : modelExtra(model, index)
+            },
           }}
           advanced={advancedBlock}
           draft={draftBlock}

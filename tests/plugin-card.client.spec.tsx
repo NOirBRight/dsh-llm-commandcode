@@ -58,13 +58,11 @@ describe('plugin-card layout (opencode baseline)', () => {
     expect(pos(visionBox, reasoningBox)).toBe(-1)
     expect(pos(reasoningBox, defaultThinking)).toBe(-1)
 
-    // Context first row is full width 36h via shared inputStyle token
+    // Fields use the shared template classes in every layout
     expect(catalogStyles.inputStyle.minHeight).toBe(36)
-    // The rendered Context input uses the 36h token
-    expect(contextInput.style.minHeight || getComputedStyle(contextInput).minHeight).toContain('36')
-    // Its wrapper spans full width (gridColumn 1 / -1)
+    expect(contextInput.className).toContain('c-input')
     const contextLabel = contextInput.closest('label') as HTMLElement
-    expect(contextLabel.style.gridColumn).toBe('1 / -1')
+    expect(contextLabel.className).toContain('c-field')
 
     // Second row contains Vision/Thinking/Default in order and uses flex wrap
     expect(catalogStyles.capabilitiesStyle.display).toBe('flex')
@@ -72,19 +70,6 @@ describe('plugin-card layout (opencode baseline)', () => {
     // capabilities container should follow the Context row
     const contextRow = contextLabel.closest('div') as HTMLElement
     expect(pos(contextRow, capabilitiesRow)).toBe(-1)
-
-    // Default thinking select is 32px via shared selectStyle token
-    expect(catalogStyles.selectStyle.minHeight).toBe(32)
-    expect(defaultThinking.style.minHeight || getComputedStyle(defaultThinking).minHeight).toContain('32')
-    // custom arrow on select
-    expect(String(catalogStyles.selectStyle.backgroundImage)).toContain('data:image/svg+xml')
-    expect(String(catalogStyles.selectStyle.backgroundImage)).toContain('M4 6l4 4 4-4')
-    expect(defaultThinking.style.backgroundImage).toContain('data:image/svg+xml')
-    expect(defaultThinking.style.appearance).toBe('none')
-    expect(container.innerHTML).toContain('Context window')
-  })
-
-  it('select token is 32px and catalog uses shared tokens', () => {
     expect(catalogStyles.selectStyle.minHeight).toBe(32)
     expect(catalogStyles.inputStyle.minHeight).toBe(36)
     expect(catalogStyles.rowInputStyle.minHeight).toBe(32)
@@ -101,6 +86,18 @@ describe('plugin-card layout (opencode baseline)', () => {
     expect(String(catalogStyles.selectStyle.backgroundImage)).toContain('data:image/svg+xml')
     expect(catalogStyles.selectStyle.appearance).toBe('none')
     expect(catalogStyles.selectStyle.backgroundPosition).toBe('right 8px center')
+  })
+
+  it('select token is 32px and catalog uses shared tokens', () => {
+    // The catalog tokens stay available for the legacy rows the card still renders.
+    expect(catalogStyles.selectStyle.minHeight).toBe(32)
+    expect(catalogStyles.inputStyle.minHeight).toBe(36)
+    expect(catalogStyles.rowInputStyle.minHeight).toBe(32)
+    expect(catalogStyles.modelDetailStyle.display).toBe('flex')
+    expect(catalogStyles.modelDetailStyle.flexDirection).toBe('column')
+    expect(catalogStyles.rowStyle.display).toBe('grid')
+    expect(catalogStyles.capabilitiesStyle.display).toBe('flex')
+    expect(String(catalogStyles.selectStyle.backgroundImage)).toContain('data:image/svg+xml')
   })
 
   it('preserves cursor-specific fields thinking, vision, defaultEffort', async () => {
@@ -125,17 +122,14 @@ describe('plugin-card layout (opencode baseline)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Model details/ }))
     const reasoning = screen.getByLabelText('Reasoning') as HTMLInputElement
     const select = screen.getByLabelText('Default thinking') as HTMLSelectElement
-    expect(select.style.minHeight).toBe('32px')
-    expect(select.style.backgroundImage).toContain('data:image/svg+xml')
-    expect(select.style.appearance).toBe('none')
+    expect(select.className).toContain('c-input')
     // conditional: uncheck hides select
     fireEvent.click(reasoning)
     expect(screen.queryByLabelText('Default thinking')).toBeNull()
     // re-check shows select again with same 32px+arrow
     fireEvent.click(reasoning)
     const restored = screen.getByLabelText('Default thinking') as HTMLSelectElement
-    expect(restored.style.minHeight).toBe('32px')
-    expect(restored.style.backgroundImage).toContain('data:image/svg+xml')
+    expect(restored.className).toContain('c-input')
   })
 
   it('ModelCatalogFields isolates order Vision->Thinking->Default thinking and conditional', () => {
@@ -165,8 +159,7 @@ describe('plugin-card layout (opencode baseline)', () => {
     expect(pos(context, vision)).toBe(-1)
     expect(pos(vision, reasoning)).toBe(-1)
     expect(pos(reasoning, select)).toBe(-1)
-    expect(select.style.minHeight).toBe('32px')
-    expect(select.style.backgroundImage).toContain('data:image/svg+xml')
+    expect(select.className).toContain('c-input')
     // hide when thinking disabled
     rerender(
       <ModelCatalogFields

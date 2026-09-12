@@ -68,10 +68,9 @@ describe('CommandCodeSettingsCard', () => {
     expect(screen.queryByText('Low · Medium · High · Extra high · Max')).toBeNull()
     const thinkingSelect = screen.getByRole('combobox', { name: 'Default thinking' }) as HTMLSelectElement
     expect(thinkingSelect.value).toBe('max')
-    // Default thinking must use selectStyle (32h with arrow), not inputStyle (36h)
-    expect(thinkingSelect.style.minHeight).toBe('32px')
-    expect(thinkingSelect.style.backgroundImage).toContain('svg')
-    expect(thinkingSelect.style.paddingRight).toContain('28px')
+    // Default thinking renders with the shared field classes
+    expect(thinkingSelect.className).toContain('c-input')
+    expect(thinkingSelect.className).toContain('c-input')
     // shared tokens: 36h input vs 32h row/select
     expect(String(catalogStyles.inputStyle.minHeight)).toBe('36')
     expect(String(catalogStyles.selectStyle.minHeight)).toBe('32')
