@@ -8,7 +8,7 @@ const CLIENT_EXTERNALS = [
   '@deepseek-ai/dsh-client-ui-layout/client', '@deepseek-ai/dsh-client-ui-renderer/client',
   '@deepseek-ai/dsh-client-ui-slots',
 ] as const
-const CLIENT_ALWAYS_BUNDLED = ['dsh-llm-providers-ui/sortable', 'dsh-llm-providers-ui/provider-ui', 'dsh-llm-providers-ui/usage-readers'] as const
+const CLIENT_ALWAYS_BUNDLED = ['dsh-llm-providers-ui/sortable', 'dsh-llm-providers-ui/provider-ui', 'dsh-llm-providers-ui/usage-readers', 'dsh-llm-providers-ui/provider-detail'] as const
 const isClientExternal = (id: string): boolean => (CLIENT_EXTERNALS as readonly string[]).includes(id)
 
 const host: UserConfig = {

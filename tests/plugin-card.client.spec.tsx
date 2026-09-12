@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
 import { CommandCodeSettingsCard } from '../src/client/CommandCodeSettingsCard.tsx'
 import { en } from '../src/client/locales.ts'
 import type { CommandCodeSettingsView } from '../src/client-contract.ts'
@@ -202,5 +203,29 @@ describe('plugin-card layout (opencode baseline)', () => {
     fireEvent.click(screen.getByRole('button', { name: en.doneSorting }))
     expect(screen.getByRole('button', { name: en.sortModels })).toBeTruthy()
     expect((screen.getByLabelText('Model ID 1') as HTMLInputElement).value).toBe('b-edited')
+  })
+  it('renders the shared detail template when the settings page asks for it', () => {
+    const onRefresh = vi.fn()
+    const usage = {
+      status: 'ready' as const,
+      fetchedAt: '2026-09-12T00:00:00.000Z',
+      windows: [
+        { id: 'daily', label: 'Day', shortLabel: 'D', remainingPercent: 42, valueText: '42%' },
+        { id: 'weekly', label: 'Week', shortLabel: 'W', remainingPercent: 88, valueText: '88%' },
+      ],
+    }
+    const { container } = render(<CommandCodeSettingsCard {...props({ mode: 'detail', usage, accountState: 'configured', onRefresh, copy: providerDetailCopy.en })} />)
+
+    expect(container.querySelector('[data-provider-detail]')).not.toBeNull()
+    expect(container.querySelectorAll('[data-c-quota]')).toHaveLength(1)
+    expect(container.textContent).toContain('42%')
+    expect(container.textContent).toContain('88%')
+    // Zero-data-retention stays available, folded into the advanced block.
+    const advanced = container.querySelector('details.c-advanced')
+    expect(advanced).not.toBeNull()
+    expect((advanced as HTMLDetailsElement).open).toBe(false)
+    expect(advanced?.textContent).toContain(en.zdr)
+    // The plugin's own quota section is gone in detail mode.
+    expect(container.querySelector('[aria-label="' + en.quota + '"]')).toBeNull()
   })
 })

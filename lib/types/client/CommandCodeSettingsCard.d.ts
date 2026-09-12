@@ -5,6 +5,7 @@ import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { CommandCodeDiscoveryRequest, CommandCodeDiscoveryResult, CommandCodeSaveResult, CommandCodeSettingsView } from '../client-contract.ts';
 import type { CommandCodeModelConfig, CommandCodeUsageRead } from '../types.ts';
 import type { CommandCodeSettingsKey } from './locales.ts';
+import { type ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail';
 export interface CommandCodeCredentialState {
     configured: boolean;
     writable: boolean;
@@ -24,7 +25,7 @@ export interface CommandCodeCardFace {
     failModelPicker: (message: string) => void;
     closeModelPicker: () => void;
 }
-export type CommandCodeSettingsCardProps = PropsRuntime<'settings.provider.item'> & InjectFace<CommandCodeCardFace>;
+export type CommandCodeSettingsCardProps = PropsRuntime<'settings.provider.item'> & InjectFace<CommandCodeCardFace> & Partial<ProviderItemSlotContext>;
 /** Standard collapsible provider card. */
 export declare function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): ReactNode;
 //# sourceMappingURL=CommandCodeSettingsCard.d.ts.map

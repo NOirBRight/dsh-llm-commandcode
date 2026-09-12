@@ -18,6 +18,7 @@ import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, Usag
 import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import { headerQuotaFromCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
+import { ProviderDetail, providerDetailCopy, type ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
 
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
 import {
@@ -49,7 +50,10 @@ export interface CommandCodeCardFace {
   closeModelPicker: () => void
 }
 
-export type CommandCodeSettingsCardProps = PropsRuntime<'settings.provider.item'> & InjectFace<CommandCodeCardFace>
+export type CommandCodeSettingsCardProps = PropsRuntime<'settings.provider.item'>
+  & InjectFace<CommandCodeCardFace>
+  // Present only on the settings page; an older host renders the legacy card.
+  & Partial<ProviderItemSlotContext>
 
 interface ModelDraft {
   rowId: string
@@ -474,6 +478,80 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   }
   const headerCount = interpolate(t('modelCount'), { count: draft.models.length })
   const headerStatus = credential === undefined ? '' : credential.configured ? t('configured') : t('notConfigured')
+  // Prototype C pieces, shared by the legacy card and the migrated detail.
+  const modelsList = (
+    <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} sorting={modelSorting} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} moveButtons moveUpLabel={(model, index) => t('moveUp') + ': ' + (model.id.trim() || String(index + 1))} moveDownLabel={(model, index) => t('moveDown') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {
+              const expanded = expandedModels.has(item.rowId)
+              const modelLabel = item.id.trim() || String(index + 1)
+              return <div data-model-row={modelLabel} data-provider-model="" style={modelContentStyle}>
+                <input style={rowInputStyle} value={item.id} placeholder={t('modelId')} aria-label={t('modelId') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { id: event.target.value })} />
+                <input style={rowInputStyle} value={item.name ?? ''} placeholder={t('modelName')} aria-label={t('modelName') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { name: event.target.value || undefined })} />
+                <button type="button" style={iconButtonStyle} aria-label={t('modelDetails') + ': ' + modelLabel} aria-expanded={expanded} title={t('modelDetails')} onClick={() => toggleModel(item.rowId)}><IconChevron open={expanded} /></button>
+                <button type="button" style={iconButtonStyle} aria-label={t('remove') + ' ' + modelLabel} title={t('remove')} disabled={disabled} onClick={() => removeModel(index)}><IconTrash /></button>
+                {expanded ? <ModelDetails model={item} disabled={disabled} t={t} patch={patch => patchModel(index, patch)} /> : null}
+              </div>
+            }} />
+            <button type="button" style={{ ...buttonStyle, alignSelf: 'flex-start' }} disabled={disabled} onClick={() => { const item: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }; patchDraft({ models: [...draft.models, item] }); setExpandedModels(current => new Set(current).add(item.rowId)) }}>{t('addModel')}</button>    </>
+  )
+  const accountFields = (
+    <>
+            <label style={fieldStyle}><span style={labelStyle}>{t('apiKey')}</span><input style={inputStyle} type="password" aria-label={t('apiKey')} autoComplete="off" value={apiKey} placeholder={credential?.configured ? t('replaceKey') : t('apiKeyPlaceholder')} disabled={disabled || credential?.writable === false} onChange={event => { setApiKey(event.target.value); setFailure(undefined); setNotice(undefined) }} /><span style={hintStyle}>{apiKey.length > 0 ? t('pendingKey') : credential?.configured ? t('configured') : t('notConfigured')}</span></label>
+            <label style={fieldStyle}><span style={labelStyle}>{t('providerURL')}</span><input style={inputStyle} type="url" aria-label={t('providerURL')} value={PUBLIC_PROVIDER_BASE_URL} disabled readOnly /><span style={hintStyle}>{t('providerURLHint')}</span></label>
+    </>
+  )
+  const advancedBlock = (
+    <>
+            <Capability label={t('zdr')} checked={draft.zeroDataRetention} disabled={disabled} onChange={value => { patchDraft({ zeroDataRetention: value }); setNotice(undefined) }} />
+            <p style={hintStyle}>{t('zdrHint')}</p>
+    </>
+  )
+  const draftBlock = (
+    <>
+          {failure !== undefined ? <p style={errorStyle}>{failure}</p> : null}
+          {notice !== undefined ? <p style={statusStyle}>{notice}</p> : null}
+          <div style={actionsStyle}><button type="button" style={buttonStyle} disabled={!dirty || busy || disabled} onClick={discard}>{t('discard')}</button><button type="button" style={primaryButtonStyle} disabled={!dirty || busy || disabled || invalid} onClick={() => void save()}>{busy ? t('saving') : t('save')}</button></div>
+    </>
+  )
+
+
+  // Prototype C detail: the shared template owns the layout, this card owns CommandCode's data.
+  if (props.mode === 'detail' && draft !== undefined) {
+    const configured = credential?.configured === true
+    return (
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <ProviderDetail
+          name={title}
+          role="llm"
+          copy={props.copy ?? providerDetailCopy.en}
+          notice={t('description')}
+          account={{
+            state: configured ? 'configured' : 'unconnected',
+            label: configured ? t('configured') : t('notConfigured'),
+            body: accountFields,
+          }}
+          quota={{
+            status: props.usage?.status ?? 'loading',
+            windows: props.usage?.windows ?? [],
+            ...(props.onRefresh === undefined ? {} : { onRefresh: props.onRefresh }),
+          }}
+          models={{
+            count: draft.models.length,
+            allOpen: catalogOpen,
+            onToggleAll: () => { setCatalogOpen(current => !current) },
+            sorting: modelSorting,
+            onToggleSorting: () => { setModelSorting(current => !current) },
+            sortDisabled: disabled || draft.models.length < 2,
+            onChooseFromAccount: () => { void fetchModels() },
+            chooseDisabled: disabled || fetching,
+            list: modelsList,
+          }}
+          advanced={advancedBlock}
+          draft={draftBlock}
+        />
+      </li>
+    )
+  }
+
   return (
     <li style={cardStyle} data-provider-card="" data-provider-role="llm">
       <style>{providerUiCss}</style>
@@ -492,10 +570,8 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
           {snapshot.status === 'ready' && !snapshot.writable ? <p style={statusStyle}>{t('readOnly')}</p> : null}
           <section style={sectionStyle}>
             <h3 style={sectionTitleStyle}>{t('connection')}</h3>
-            <label style={fieldStyle}><span style={labelStyle}>{t('apiKey')}</span><input style={inputStyle} type="password" aria-label={t('apiKey')} autoComplete="off" value={apiKey} placeholder={credential?.configured ? t('replaceKey') : t('apiKeyPlaceholder')} disabled={disabled || credential?.writable === false} onChange={event => { setApiKey(event.target.value); setFailure(undefined); setNotice(undefined) }} /><span style={hintStyle}>{apiKey.length > 0 ? t('pendingKey') : credential?.configured ? t('configured') : t('notConfigured')}</span></label>
-            <label style={fieldStyle}><span style={labelStyle}>{t('providerURL')}</span><input style={inputStyle} type="url" aria-label={t('providerURL')} value={PUBLIC_PROVIDER_BASE_URL} disabled readOnly /><span style={hintStyle}>{t('providerURLHint')}</span></label>
-            <Capability label={t('zdr')} checked={draft.zeroDataRetention} disabled={disabled} onChange={value => { patchDraft({ zeroDataRetention: value }); setNotice(undefined) }} />
-            <p style={hintStyle}>{t('zdrHint')}</p>
+            {accountFields}
+            {advancedBlock}
           </section>
           <section style={sectionStyle} aria-label={t('quota')}>
             <UsageHeader title={t('quota')} spinning={usage.status === 'loading'} disabled={usage.status === 'loading' || disabled || (credential?.configured !== true && apiKey.trim().length === 0)} refreshLabel={t('quotaRefresh')} busyLabel={t('quotaLoading')} onRefresh={() => void loadUsage()} />
@@ -510,23 +586,10 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
                 <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => void fetchModels()}>{fetching ? t('fetchingModels') : t('refreshModels')}</button>
               </span>
             </div>
-            {catalogOpen ? <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} sorting={modelSorting} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} moveButtons moveUpLabel={(model, index) => t('moveUp') + ': ' + (model.id.trim() || String(index + 1))} moveDownLabel={(model, index) => t('moveDown') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {
-              const expanded = expandedModels.has(item.rowId)
-              const modelLabel = item.id.trim() || String(index + 1)
-              return <div data-model-row={modelLabel} data-provider-model="" style={modelContentStyle}>
-                <input style={rowInputStyle} value={item.id} placeholder={t('modelId')} aria-label={t('modelId') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { id: event.target.value })} />
-                <input style={rowInputStyle} value={item.name ?? ''} placeholder={t('modelName')} aria-label={t('modelName') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { name: event.target.value || undefined })} />
-                <button type="button" style={iconButtonStyle} aria-label={t('modelDetails') + ': ' + modelLabel} aria-expanded={expanded} title={t('modelDetails')} onClick={() => toggleModel(item.rowId)}><IconChevron open={expanded} /></button>
-                <button type="button" style={iconButtonStyle} aria-label={t('remove') + ' ' + modelLabel} title={t('remove')} disabled={disabled} onClick={() => removeModel(index)}><IconTrash /></button>
-                {expanded ? <ModelDetails model={item} disabled={disabled} t={t} patch={patch => patchModel(index, patch)} /> : null}
-              </div>
-            }} />
-            <button type="button" style={{ ...buttonStyle, alignSelf: 'flex-start' }} disabled={disabled} onClick={() => { const item: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }; patchDraft({ models: [...draft.models, item] }); setExpandedModels(current => new Set(current).add(item.rowId)) }}>{t('addModel')}</button></> : null}
+          {catalogOpen ? modelsList : null}
             {draft.models.length === 0 ? <p style={hintStyle}>{t('fetchModelsFirst')}</p> : null}
           </section>
-          {failure !== undefined ? <p style={errorStyle}>{failure}</p> : null}
-          {notice !== undefined ? <p style={statusStyle}>{notice}</p> : null}
-          <div style={actionsStyle}><button type="button" style={buttonStyle} disabled={!dirty || busy || disabled} onClick={discard}>{t('discard')}</button><button type="button" style={primaryButtonStyle} disabled={!dirty || busy || disabled || invalid} onClick={() => void save()}>{busy ? t('saving') : t('save')}</button></div>
+          {draftBlock}
         </div>
       ) : null}
     </li>

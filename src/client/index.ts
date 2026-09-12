@@ -158,7 +158,16 @@ export function apply(ctx: Context): void {
   }, CommandCodeSettingsCard))
   ctx.inject(['providerDirectory'], (ctx) => {
     ctx.effect(
-      () => ctx.providerDirectory.register({ key: COMMANDCODE_SETTINGS_NAMESPACE, role: 'llm', header: 'shared', usage: createCommandCodeUsageReader() }),
+      () => ctx.providerDirectory.register({
+        key: COMMANDCODE_SETTINGS_NAMESPACE,
+        name: 'CommandCode',
+        role: 'llm',
+        header: 'shared',
+        // The card renders the shared detail template; the settings page adds only the breadcrumb.
+        detail: 'shared',
+        usage: createCommandCodeUsageReader(),
+        modelCount: () => scope.getSnapshot().value?.models?.length,
+      }),
       'dsh-llm-commandcode: provider directory',
     )
   })
