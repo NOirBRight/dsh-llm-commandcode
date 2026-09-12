@@ -18,7 +18,7 @@ import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, Usag
 import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import { headerQuotaFromCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
-import { ProviderDetail, providerDetailCopy, type ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
+import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
 
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
 import {
@@ -515,14 +515,16 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
 
 
   // Prototype C detail: the shared template owns the layout, this card owns CommandCode's data.
-  if (props.mode === 'detail' && draft !== undefined) {
+  const SharedDetail = props.template
+  const detailCopy = props.copy
+  if (props.mode === 'detail' && SharedDetail !== undefined && detailCopy !== undefined && draft !== undefined) {
     const configured = credential?.configured === true
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
-        <ProviderDetail
+        <SharedDetail
           name={title}
           role="llm"
-          copy={props.copy ?? providerDetailCopy.en}
+          copy={detailCopy}
           notice={t('description')}
           account={{
             state: configured ? 'configured' : 'unconnected',

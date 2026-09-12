@@ -5,7 +5,7 @@ import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { CommandCodeDiscoveryRequest, CommandCodeDiscoveryResult, CommandCodeSaveResult, CommandCodeSettingsView } from '../client-contract.ts';
 import type { CommandCodeModelConfig, CommandCodeUsageRead } from '../types.ts';
 import type { CommandCodeSettingsKey } from './locales.ts';
-import { type ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail';
+import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail';
 export interface CommandCodeCredentialState {
     configured: boolean;
     writable: boolean;

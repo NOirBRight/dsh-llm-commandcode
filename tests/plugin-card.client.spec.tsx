@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
+import { ProviderDetail, providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
 import { CommandCodeSettingsCard } from '../src/client/CommandCodeSettingsCard.tsx'
 import { en } from '../src/client/locales.ts'
 import type { CommandCodeSettingsView } from '../src/client-contract.ts'
@@ -214,7 +214,7 @@ describe('plugin-card layout (opencode baseline)', () => {
         { id: 'weekly', label: 'Week', shortLabel: 'W', remainingPercent: 88, valueText: '88%' },
       ],
     }
-    const { container } = render(<CommandCodeSettingsCard {...props({ mode: 'detail', usage, accountState: 'configured', onRefresh, copy: providerDetailCopy.en })} />)
+    const { container } = render(<CommandCodeSettingsCard {...props({ mode: 'detail', usage, accountState: 'configured', onRefresh, copy: providerDetailCopy.en, template: ProviderDetail })} />)
 
     expect(container.querySelector('[data-provider-detail]')).not.toBeNull()
     expect(container.querySelectorAll('[data-c-quota]')).toHaveLength(1)
