@@ -401,6 +401,8 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const toggleModel = (id: string): void => { setExpandedModels(current => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next }) }
 
   const loadUsage = async (): Promise<void> => {
+    // The settings page owns quota in the shared detail; the card self-loads only in the legacy layout.
+    if (props.mode === 'detail') return
     if (draft === undefined || snapshot.value?.usageEnabled === false || (!credential?.configured && apiKey.trim().length === 0)) return
     const epoch = usageEpoch.current + 1
     usageEpoch.current = epoch
