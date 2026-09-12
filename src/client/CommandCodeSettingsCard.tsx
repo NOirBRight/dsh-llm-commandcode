@@ -532,7 +532,6 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   if (props.mode === 'detail' && SharedDetail !== undefined && detailCopy !== undefined && draft !== undefined) {
     const configured = credential?.configured === true
     return (
-      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
         <SharedDetail
           name={title}
           role="llm"
@@ -593,7 +592,6 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
           advanced={advancedBlock}
           draft={draftBlock}
         />
-      </li>
     )
   }
 
