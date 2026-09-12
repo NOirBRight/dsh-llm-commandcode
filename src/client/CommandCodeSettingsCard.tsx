@@ -1,6 +1,6 @@
 /** Command Code provider card using the shared DSH provider layout. */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -10,12 +10,16 @@ import type {
   CommandCodeSaveResult,
   CommandCodeSettingsView,
 } from '../client-contract.ts'
-import { PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
+import { COMMANDCODE_SETTINGS_NAMESPACE, PUBLIC_PROVIDER_BASE_URL } from '../client-contract.ts'
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, providerHeaderStyle } from './provider-chrome.tsx'
+import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, providerUiCss } from './provider-chrome.tsx'
+import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
+import { headerQuotaFromCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
+import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
+
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
 import {
   ModelCatalogFields,
@@ -46,7 +50,10 @@ export interface CommandCodeCardFace {
   closeModelPicker: () => void
 }
 
-export type CommandCodeSettingsCardProps = PropsRuntime<'settings.provider.item'> & InjectFace<CommandCodeCardFace>
+export type CommandCodeSettingsCardProps = PropsRuntime<'settings.provider.item'>
+  & InjectFace<CommandCodeCardFace>
+  // Present only on the settings page; an older host renders the legacy card.
+  & Partial<ProviderItemSlotContext>
 
 interface ModelDraft {
   rowId: string
@@ -57,6 +64,7 @@ interface ModelDraft {
   contextWindowOverride?: string
   maxTokens?: string
   defaultEffort?: string
+  thinkingEfforts?: string[]
   vision?: boolean
   thinking?: boolean
 }
@@ -76,8 +84,7 @@ type UsageState =
 type ModelPatch = { [K in keyof ModelDraft]?: ModelDraft[K] | undefined }
 
 const cardStyle: CSSProperties = {
-  overflow: 'hidden', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 10,
-  background: 'var(--dsw-alias-bg-module-platform)',
+  overflow: 'visible',
 }
 const bodyStyle: CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 18, borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '16px 14px 18px',
@@ -98,8 +105,6 @@ const iconButtonStyle: CSSProperties = {
 const disclosureStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, border: 0, padding: 0, background: 'transparent', color: 'var(--dsw-alias-label-primary)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }
 const statusStyle: CSSProperties = { margin: 0, fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }
 const errorStyle: CSSProperties = { ...statusStyle, color: 'var(--dsw-alias-state-error-primary)' }
-const barTrackStyle: CSSProperties = { boxSizing: 'border-box', height: 14, display: 'flex', overflow: 'hidden', borderRadius: 999, background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)' }
-
 let nextModelRow = 0
 function newModelRowId(): string { nextModelRow += 1; return 'commandcode-model-row-' + String(nextModelRow) }
 
@@ -119,6 +124,7 @@ function modelDraftOf(model: CommandCodeModelConfig): ModelDraft {
     ...(model.contextWindowOverride === undefined ? {} : { contextWindowOverride: String(model.contextWindowOverride) }),
     ...(model.maxTokens === undefined ? {} : { maxTokens: String(model.maxTokens) }),
     ...(defaultEffort === undefined ? {} : { defaultEffort }),
+    ...(model.thinkingEfforts === undefined || model.thinkingEfforts.length === 0 ? {} : { thinkingEfforts: [...model.thinkingEfforts] }),
     ...(vision ? { vision: true } : {}),
     ...(thinking === undefined ? {} : { thinking }),
   }
@@ -141,8 +147,12 @@ function modelSettingsOf(draft: ModelDraft): CommandCodeModelConfig {
   const contextWindowOverride = draft.contextWindowOverride === undefined ? undefined : integerOf(draft.contextWindowOverride)
   const maxTokens = draft.maxTokens === undefined ? undefined : integerOf(draft.maxTokens)
   const thinking = draft.thinking
+  // Overlay efforts must survive a save: models.dev-only ids keep their selector.
+  const overlayEfforts = draft.thinkingEfforts === undefined || draft.thinkingEfforts.length === 0 ? undefined : draft.thinkingEfforts
   // When thinking is explicitly disabled, clear the persisted effort (migration fix).
-  const effortModel = thinking === false ? { id: draft.id.trim() } : { id: draft.id.trim(), ...(draft.defaultEffort === undefined ? {} : { defaultEffort: draft.defaultEffort }) }
+  const effortModel = thinking === false
+    ? { id: draft.id.trim(), ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }) }
+    : { id: draft.id.trim(), ...(draft.defaultEffort === undefined ? {} : { defaultEffort: draft.defaultEffort }), ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }) }
   const defaultEffort = thinking === false ? undefined : defaultEffortForCommandCodeModel(effortModel)
   const vision = draft.vision === true
   const inputModalities = vision ? ['text' as const, 'image' as const] : undefined
@@ -155,6 +165,7 @@ function modelSettingsOf(draft: ModelDraft): CommandCodeModelConfig {
     ...(maxTokens === undefined || Number.isNaN(maxTokens) ? {} : { maxTokens }),
     ...(thinking === undefined ? {} : { thinking }),
     ...(defaultEffort === undefined ? {} : { defaultEffort }),
+    ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }),
     ...(inputModalities === undefined ? {} : { inputModalities }),
   }
 }
@@ -185,9 +196,6 @@ function IconTrash(): ReactNode {
   return <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.7 9a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L12 4M6.5 6.8v4.4M9.5 6.8v4.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
 
-function Capability({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (value: boolean) => void }): ReactNode {
-  return <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}><input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />{label}</label>
-}
 
 
 
@@ -198,7 +206,11 @@ function ModelDetails(props: {
   patch: (patch: ModelPatch) => void
 }): ReactNode {
   const { model, disabled, t, patch } = props
-  const policyModel = { id: model.id, ...(model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort }) }
+  const policyModel = {
+    id: model.id,
+    ...(model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort }),
+    ...(model.thinkingEfforts === undefined ? {} : { thinkingEfforts: model.thinkingEfforts }),
+  }
   const efforts = effortsForCommandCodeModel(policyModel)
   const defaultEffort = defaultEffortForCommandCodeModel(policyModel)
   const hasEfforts = efforts.length > 0
@@ -233,15 +245,22 @@ function ModelDetails(props: {
 }
 
 function UsageBar({ label, window, t }: { label: string; window: { used: number; cap: number; exceeded?: boolean; resetAt?: string }; t: CommandCodeSettingsCardProps['t'] }): ReactNode {
-  const percent = window.cap <= 0 ? 0 : Math.min(100, Math.max(0, window.used / window.cap * 100))
   const reset = window.resetAt === undefined ? undefined : interpolate(t('reset'), { time: new Date(window.resetAt).toLocaleString() })
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}><span style={labelStyle}>{label}</span><span style={hintStyle}>{'$' + window.used.toFixed(2)} / {'$' + window.cap.toFixed(2)} · {percent.toFixed(1)}%</span></div>
-      <div style={barTrackStyle} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)}><span style={{ width: String(percent) + '%', height: '100%', flex: 'none', background: window.exceeded === true ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-state-business-primary)', transition: 'width 200ms ease' }} /></div>
-      <UsageResetAt label={reset} />
-    </div>
-  )
+  if (window.cap <= 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}><span style={labelStyle}>{label}</span><span style={hintStyle}>{'$' + window.used.toFixed(2)} / {'$' + window.cap.toFixed(2)}</span></div>
+    )
+  }
+  const remaining = 100 * (1 - window.used / window.cap)
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}><span style={labelStyle}>{label}</span><span style={hintStyle}>{'$' + window.used.toFixed(2)} / {'$' + window.cap.toFixed(2)}</span></div>
+        <UsageResetAt label={reset} />
+      </div>
+    )
+  }
+  return <ProviderQuotaMeter remainingPercent={Math.round(remaining * 10) / 10} label={label} {...(reset === undefined ? {} : { detail: reset })} />
 }
 
 function UsageContent({ state, t }: { state: UsageState; t: CommandCodeSettingsCardProps['t'] }): ReactNode {
@@ -303,6 +322,18 @@ function patchedModel(model: ModelDraft, patch: ModelPatch): ModelDraft {
   return next as unknown as ModelDraft
 }
 
+/** Headline remaining quota from real auth values; missing renders no meter, never zero. */
+function headlineQuotaOf(view: CommandCodeUsageView | undefined, t: CommandCodeSettingsCardProps['t']): ProviderQuotaState | undefined {
+  const window = view?.credits?.weekly ?? view?.credits?.fiveHour;
+  if (window === undefined || window.cap <= 0) return undefined;
+  const remaining = 100 * (1 - window.used / window.cap);
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) return undefined;
+  return {
+    remainingPercent: Math.round(remaining * 10) / 10,
+    label: view?.credits?.weekly !== undefined ? t('weekly') : t('fiveHour'),
+  };
+}
+
 /** Standard collapsible provider card. */
 export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): ReactNode {
   const { t } = props
@@ -320,7 +351,13 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [usage, setUsage] = useState<UsageState>({ status: 'idle' })
   const [usageUpdatedAt, setUsageUpdatedAt] = useState<Date | undefined>(undefined)
+  // Read generation: only the latest usage read may publish. A superseded read
+  // (save-new-key, credential change, unmount) must not resurrect old-account
+  // usage into state or the persisted headline cache.
+  const usageEpoch = useRef(0)
+  const mounted = useRef(true)
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [modelSorting, setModelSorting] = useState(false)
   const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
   const dirty = source !== undefined && draft !== undefined && (!sameDraft(source, draft) || apiKey.length > 0)
 
@@ -330,10 +367,29 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
     setSource(next); setDraft(next); setSourceRevision(snapshot.revision)
   }, [dirty, snapshot.revision, snapshot.status, snapshot.value, sourceRevision])
 
+  // Credential generation mirrors the usage epoch: a superseded credential read
+  // must not overwrite fresher credential state.
+  const credentialEpoch = useRef(0)
   const refreshCredential = async (): Promise<void> => {
-    try { setCredential(await props.describeCredential()) } catch { setCredential(undefined) }
+    const epoch = credentialEpoch.current + 1
+    credentialEpoch.current = epoch
+    const liveCredential = (): boolean => mounted.current && epoch === credentialEpoch.current
+    try {
+      const next = await props.describeCredential()
+      if (!liveCredential()) return
+      setCredential(next)
+    } catch {
+      if (!liveCredential()) return
+      setCredential(undefined)
+    }
   }
   useEffect(() => { if (snapshot.status === 'ready') void refreshCredential() }, [snapshot.status, snapshot.value?.apiKeyEnv])
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   useEffect(() => () => { props.closeModelPicker() }, [props.closeModelPicker])
 
   const disabled = snapshot.status !== 'ready' || !snapshot.writable || busy
@@ -345,16 +401,25 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const toggleModel = (id: string): void => { setExpandedModels(current => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next }) }
 
   const loadUsage = async (): Promise<void> => {
+    // The settings page owns quota in the shared detail; the card self-loads only in the legacy layout.
+    if (props.mode === 'detail') return
     if (draft === undefined || snapshot.value?.usageEnabled === false || (!credential?.configured && apiKey.trim().length === 0)) return
+    const epoch = usageEpoch.current + 1
+    usageEpoch.current = epoch
+    const live = (): boolean => mounted.current && epoch === usageEpoch.current
     setUsage({ status: 'loading' })
     try {
       if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
       const result = await props.fetchUsage()
+      if (!live()) return
       if (result.status === 'unsupported') setUsage({ status: 'unsupported' })
-      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()) }
-    } catch (error: unknown) { setUsage({ status: 'error', message: messageOf(error, t('quotaFailed')) }) }
+      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()); rememberHeadlineQuota(COMMANDCODE_SETTINGS_NAMESPACE, 'CommandCode', headlineQuotaOf(result.usage, t)) }
+    } catch (error: unknown) { if (live()) setUsage({ status: 'error', message: messageOf(error, t('quotaFailed')) }) }
   }
-  useEffect(() => { if (open && snapshot.status === 'ready' && credential?.configured === true) void loadUsage() }, [open, snapshot.status, credential?.configured])
+  // Header quota loads collapsed once the credential is ready; idle status dedups so expansion never refires.
+  useEffect(() => {
+    if (snapshot.status === 'ready' && credential?.configured === true && usage.status === 'idle') void loadUsage()
+  }, [snapshot.status, credential?.configured, usage.status])
 
   const fetchModels = async (): Promise<void> => {
     if (draft === undefined) return
@@ -376,35 +441,180 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const discard = (): void => { if (source !== undefined) setDraft(structuredClone(source)); setApiKey(''); setFailure(undefined); setNotice(undefined) }
   const save = async (): Promise<void> => {
     if (draft === undefined || snapshot.value === undefined || invalid) return
+    usageEpoch.current++
     setBusy(true); setFailure(undefined); setNotice(undefined)
     try {
       if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
       const accepted = await props.saveConfiguration(settingsOf(draft, snapshot.value))
       const next = draftOf(accepted.settings)
       setSource(next); setDraft(next); setSourceRevision(accepted.revision); setApiKey(''); setNotice(t('saved')); await refreshCredential(); setUsage({ status: 'idle' })
-    } catch (error: unknown) { setFailure(messageOf(error, t('saveFailed'))) }
+    } catch (error: unknown) {
+      const message = messageOf(error, t('saveFailed'))
+      setFailure(message)
+      // Idle would automatically retry storing the rejected key through loadUsage.
+      setUsage(current => current.status === 'loading' ? { status: 'error', message } : current)
+    }
     finally { setBusy(false) }
   }
 
-  if (snapshot.status !== 'ready' || draft === undefined) return null
-
   const title = t('title')
-  const summary = formatProviderSummary(credential?.configured === true ? t('configured') : t('notConfigured'), interpolate(t('modelCount'), { count: draft.models.length }))
+  const liveQuota = credential?.configured === true && usage.status === 'ready' ? headlineQuotaOf(usage.usage, t) : undefined
+  // Persisted fallback before fresh metadata: allowed while credential is unknown,
+  // withheld once known-false or the usage read settles error/unsupported.
+  const quotaWithheld = credential?.configured === false || usage.status === 'error' || usage.status === 'unsupported'
+  // The verdict gates the entire header quota, not only the persisted fallback:
+  // stale local lastUsage must not look fresh on error/unsupported either.
+  const headerQuota = quotaWithheld ? undefined : (liveQuota ?? headerQuotaFromCache(peekCachedUsage(COMMANDCODE_SETTINGS_NAMESPACE)))
+  if (snapshot.status !== 'ready' || draft === undefined) {
+    return (
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <style>{providerUiCss}</style>
+        <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => { setOpen(current => !current) }}>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary="" status="" open={open} role="llm" {...(headerQuota === undefined ? {} : { quota: headerQuota })} />
+        </button>
+      </li>
+    )
+  }
+  const headerCount = interpolate(t('modelCount'), { count: draft.models.length })
+  const headerStatus = credential === undefined ? '' : credential.configured ? t('configured') : t('notConfigured')
+  // Prototype C pieces, shared by the legacy card and the migrated detail.
+  const modelsList = (
+    <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} sorting={modelSorting} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} moveButtons moveUpLabel={(model, index) => t('moveUp') + ': ' + (model.id.trim() || String(index + 1))} moveDownLabel={(model, index) => t('moveDown') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {
+              const expanded = expandedModels.has(item.rowId)
+              const modelLabel = item.id.trim() || String(index + 1)
+              return <div data-model-row={modelLabel} data-provider-model="" style={modelContentStyle}>
+                <input style={rowInputStyle} value={item.id} placeholder={t('modelId')} aria-label={t('modelId') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { id: event.target.value })} />
+                <input style={rowInputStyle} value={item.name ?? ''} placeholder={t('modelName')} aria-label={t('modelName') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { name: event.target.value || undefined })} />
+                <button type="button" style={iconButtonStyle} aria-label={t('modelDetails') + ': ' + modelLabel} aria-expanded={expanded} title={t('modelDetails')} onClick={() => toggleModel(item.rowId)}><IconChevron open={expanded} /></button>
+                <button type="button" style={iconButtonStyle} aria-label={t('remove') + ' ' + modelLabel} title={t('remove')} disabled={disabled} onClick={() => removeModel(index)}><IconTrash /></button>
+                {expanded ? modelExtra(item, index) : null}
+              </div>
+            }} />
+            <button type="button" style={{ ...buttonStyle, alignSelf: 'flex-start' }} disabled={disabled} onClick={() => { const item: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }; patchDraft({ models: [...draft.models, item] }); setExpandedModels(current => new Set(current).add(item.rowId)) }}>{t('addModel')}</button>    </>
+  )
+  const accountFields = (
+    <>
+            <label style={fieldStyle}><span style={labelStyle}>{t('apiKey')}</span><input style={inputStyle} type="password" aria-label={t('apiKey')} autoComplete="off" value={apiKey} placeholder={credential?.configured ? t('replaceKey') : t('apiKeyPlaceholder')} disabled={disabled || credential?.writable === false} onChange={event => { setApiKey(event.target.value); setFailure(undefined); setNotice(undefined) }} /><span style={hintStyle}>{apiKey.length > 0 ? t('pendingKey') : credential?.configured ? t('configured') : t('notConfigured')}</span></label>
+            <label style={fieldStyle}><span style={labelStyle}>{t('providerURL')}</span><input style={inputStyle} type="url" aria-label={t('providerURL')} value={PUBLIC_PROVIDER_BASE_URL} disabled readOnly /><span style={hintStyle}>{t('providerURLHint')}</span></label>
+    </>
+  )
+  const advancedBlock = (
+    <div className="c-control">
+      <label className="c-checkbox-field">
+        <input
+          type="checkbox"
+          checked={draft.zeroDataRetention}
+          disabled={disabled}
+          onChange={event => { patchDraft({ zeroDataRetention: event.target.checked }); setNotice(undefined) }}
+        />
+        {t('zdr')}
+      </label>
+      <p className="c-field-hint">{t('zdrHint')}</p>
+    </div>
+  )
+  const draftBlock = (
+    <>
+          {failure !== undefined ? <p style={errorStyle}>{failure}</p> : null}
+          {notice !== undefined ? <p style={statusStyle}>{notice}</p> : null}
+          <div style={actionsStyle}><button type="button" style={buttonStyle} disabled={!dirty || busy || disabled} onClick={discard}>{t('discard')}</button><button type="button" style={primaryButtonStyle} disabled={!dirty || busy || disabled || invalid} onClick={() => void save()}>{busy ? t('saving') : t('save')}</button></div>
+    </>
+  )
+
+
+  /** Provider-specific fields for one expanded model row; shared by both layouts. */
+  const modelExtra = (item: ModelDraft, index: number): ReactNode => (
+    <ModelDetails model={item} disabled={disabled} t={t} patch={patch => patchModel(index, patch)} />
+  )
+
+  // Prototype C detail: the shared template owns the layout, this card owns CommandCode's data.
+  const SharedDetail = props.template
+  const detailCopy = props.copy
+  if (props.mode === 'detail' && SharedDetail !== undefined && detailCopy !== undefined && draft !== undefined) {
+    const configured = credential?.configured === true
+    return (
+        <SharedDetail
+          name={title}
+          role="llm"
+          mark={<BrandMark />}
+          copy={detailCopy}
+          notice={t('description')}
+          account={{
+            state: configured ? 'configured' : 'unconnected',
+            label: configured ? t('configured') : t('notConfigured'),
+            body: accountFields,
+          }}
+          quota={{
+            status: props.usage?.status ?? 'loading',
+            windows: props.usage?.windows ?? [],
+            ...(props.onRefresh === undefined ? {} : { onRefresh: props.onRefresh }),
+          }}
+          models={{
+            count: draft.models.length,
+            allOpen: catalogOpen,
+            onToggleAll: () => { setCatalogOpen(current => !current) },
+            sorting: modelSorting,
+            onToggleSorting: () => { setModelSorting(current => !current) },
+            sortDisabled: disabled || draft.models.length < 2,
+            onChooseFromAccount: () => { void fetchModels() },
+            chooseDisabled: disabled || fetching,
+            items: draft.models.map(model => ({
+              rowId: model.rowId,
+              id: model.id,
+              ...(model.name === undefined ? {} : { name: model.name }),
+            })),
+            expanded: [...expandedModels],
+            onPatch: (rowId, patch) => {
+              const index = draft.models.findIndex(model => model.rowId === rowId)
+              if (index >= 0) patchModel(index, patch)
+            },
+            onRemove: (rowId) => {
+              const index = draft.models.findIndex(model => model.rowId === rowId)
+              if (index >= 0) removeModel(index)
+            },
+            onToggle: (rowId) => { toggleModel(rowId) },
+            onReorder: (rowIds) => {
+              const byId = new Map(draft.models.map(model => [model.rowId, model]))
+              const next = rowIds.map(rowId => byId.get(rowId)).filter((model): model is ModelDraft => model !== undefined)
+              if (next.length === draft.models.length) patchDraft({ models: next })
+            },
+            onAdd: () => {
+              const item: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }
+              patchDraft({ models: [...draft.models, item] })
+              setExpandedModels(current => new Set(current).add(item.rowId))
+            },
+            addDisabled: disabled,
+            extra: (row) => {
+              const index = draft.models.findIndex(model => model.rowId === row.rowId)
+              const model = draft.models[index]
+              return index < 0 || model === undefined ? null : modelExtra(model, index)
+            },
+          }}
+          advanced={advancedBlock}
+          draft={draftBlock}
+        />
+    )
+  }
+
   return (
-    <li style={cardStyle}>
-      <button type="button" style={providerHeaderStyle} aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => setOpen(current => !current)}>
-        <ProviderCardHeader title={title} mark={<BrandMark />} summary={summary} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} />
+    <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+      <style>{providerUiCss}</style>
+      <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => setOpen(current => !current)}>
+        <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerCount} status={headerStatus} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} role="llm"
+          {...(headerQuota === undefined
+            ? (credential?.configured === true && (usage.status === 'error' || usage.status === 'unsupported')
+              // Query attempted but no usable quota: unavailable dash, never a fabricated percent.
+              ? { quota: { label: t('quota') } }
+              : {})
+            : { quota: headerQuota })} />
       </button>
       {open ? (
-        <div style={bodyStyle}>
+        <div style={bodyStyle} data-provider-body="">
           <p style={hintStyle}>{t('description')}</p>
           {snapshot.status === 'ready' && !snapshot.writable ? <p style={statusStyle}>{t('readOnly')}</p> : null}
           <section style={sectionStyle}>
             <h3 style={sectionTitleStyle}>{t('connection')}</h3>
-            <label style={fieldStyle}><span style={labelStyle}>{t('apiKey')}</span><input style={inputStyle} type="password" aria-label={t('apiKey')} autoComplete="off" value={apiKey} placeholder={credential?.configured ? t('replaceKey') : t('apiKeyPlaceholder')} disabled={disabled || credential?.writable === false} onChange={event => { setApiKey(event.target.value); setFailure(undefined); setNotice(undefined) }} /><span style={hintStyle}>{apiKey.length > 0 ? t('pendingKey') : credential?.configured ? t('configured') : t('notConfigured')}</span></label>
-            <label style={fieldStyle}><span style={labelStyle}>{t('providerURL')}</span><input style={inputStyle} type="url" aria-label={t('providerURL')} value={PUBLIC_PROVIDER_BASE_URL} disabled readOnly /><span style={hintStyle}>{t('providerURLHint')}</span></label>
-            <Capability label={t('zdr')} checked={draft.zeroDataRetention} disabled={disabled} onChange={value => { patchDraft({ zeroDataRetention: value }); setNotice(undefined) }} />
-            <p style={hintStyle}>{t('zdrHint')}</p>
+            {accountFields}
+            {advancedBlock}
           </section>
           <section style={sectionStyle} aria-label={t('quota')}>
             <UsageHeader title={t('quota')} spinning={usage.status === 'loading'} disabled={usage.status === 'loading' || disabled || (credential?.configured !== true && apiKey.trim().length === 0)} refreshLabel={t('quotaRefresh')} busyLabel={t('quotaLoading')} onRefresh={() => void loadUsage()} />
@@ -414,25 +624,15 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
           <section style={sectionStyle} aria-label={t('models')}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <button type="button" style={disclosureStyle} aria-expanded={catalogOpen} aria-label={t('models')} onClick={() => setCatalogOpen(current => !current)}><IconChevron open={catalogOpen} /><span style={sectionTitleStyle}>{t('models')}</span><span style={hintStyle}>{draft.models.length > 0 ? t('customCatalog') : t('defaultCatalog')}</span></button>
-              <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => void fetchModels()}>{fetching ? t('fetchingModels') : t('refreshModels')}</button>
+              <span style={{ display: 'inline-flex', gap: 8 }}>
+                <button type="button" style={buttonStyle} aria-pressed={modelSorting} disabled={disabled || draft.models.length < 2} onClick={() => { setModelSorting(current => !current) }}>{t(modelSorting ? 'doneSorting' : 'sortModels')}</button>
+                <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => void fetchModels()}>{fetching ? t('fetchingModels') : t('refreshModels')}</button>
+              </span>
             </div>
-            {catalogOpen ? <><SortableList items={draft.models} getId={model => model.rowId} disabled={disabled} dragLabel={(model, index) => t('dragModel') + ': ' + (model.id.trim() || String(index + 1))} onReorder={models => patchDraft({ models })} renderItem={(item, index) => {
-              const expanded = expandedModels.has(item.rowId)
-              const modelLabel = item.id.trim() || String(index + 1)
-              return <div data-model-row={modelLabel} style={modelContentStyle}>
-                <input style={rowInputStyle} value={item.id} placeholder={t('modelId')} aria-label={t('modelId') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { id: event.target.value })} />
-                <input style={rowInputStyle} value={item.name ?? ''} placeholder={t('modelName')} aria-label={t('modelName') + ' ' + String(index + 1)} disabled={disabled} onChange={event => patchModel(index, { name: event.target.value || undefined })} />
-                <button type="button" style={iconButtonStyle} aria-label={t('modelDetails') + ': ' + modelLabel} aria-expanded={expanded} title={t('modelDetails')} onClick={() => toggleModel(item.rowId)}><IconChevron open={expanded} /></button>
-                <button type="button" style={iconButtonStyle} aria-label={t('remove') + ' ' + modelLabel} title={t('remove')} disabled={disabled} onClick={() => removeModel(index)}><IconTrash /></button>
-                {expanded ? <ModelDetails model={item} disabled={disabled} t={t} patch={patch => patchModel(index, patch)} /> : null}
-              </div>
-            }} />
-            <button type="button" style={{ ...buttonStyle, alignSelf: 'flex-start' }} disabled={disabled} onClick={() => { const item: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }; patchDraft({ models: [...draft.models, item] }); setExpandedModels(current => new Set(current).add(item.rowId)) }}>{t('addModel')}</button></> : null}
+          {catalogOpen ? modelsList : null}
             {draft.models.length === 0 ? <p style={hintStyle}>{t('fetchModelsFirst')}</p> : null}
           </section>
-          {failure !== undefined ? <p style={errorStyle}>{failure}</p> : null}
-          {notice !== undefined ? <p style={statusStyle}>{notice}</p> : null}
-          <div style={actionsStyle}><button type="button" style={buttonStyle} disabled={!dirty || busy || disabled} onClick={discard}>{t('discard')}</button><button type="button" style={primaryButtonStyle} disabled={!dirty || busy || disabled || invalid} onClick={() => void save()}>{busy ? t('saving') : t('save')}</button></div>
+          {draftBlock}
         </div>
       ) : null}
     </li>

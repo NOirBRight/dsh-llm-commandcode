@@ -3,12 +3,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
-import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
+import { assertUsableApiKey, INVALID_CREDENTIAL_CODE, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { allowDshRuntime } from './compatibility.ts'
 import {
   COMMANDCODE_SETTINGS_READ_ENDPOINT,
   COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
@@ -108,6 +109,7 @@ const catalogModel: z<CommandCodeModelConfig> = z.object({
   maxTokens: z.number().step(1).min(1),
   thinking: z.boolean(),
   defaultEffort: z.string(),
+  thinkingEfforts: z.array(z.string()),
   inputModalities: z.array(z.union(MODEL_MODALITIES)),
 })
 
@@ -147,13 +149,27 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
     if (model.thinking !== undefined && typeof model.thinking !== 'boolean') throw new Error('llm-commandcode: invalid thinking for ' + model.id)
     // Thinking persistence: when explicitly disabled, discard any persisted effort.
     const normalizedEffort = model.thinking === false ? undefined : model.defaultEffort
-    const effortModel = normalizedEffort === undefined ? { id: model.id } : { id: model.id, defaultEffort: normalizedEffort }
-    const efforts = effortsForCommandCodeModel({ id: model.id })
+    const overlayEfforts = model.thinkingEfforts === undefined || model.thinkingEfforts.length === 0 ? undefined : [...model.thinkingEfforts]
+    const effortModel = {
+      id: model.id,
+      ...(normalizedEffort === undefined ? {} : { defaultEffort: normalizedEffort }),
+      ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }),
+    }
+    const efforts = effortsForCommandCodeModel(effortModel)
     const hasEfforts = efforts.length > 0
     // Migration: old configs without thinking keep their effort if the model supports it.
     const effectiveThinking = model.thinking ?? (hasEfforts ? undefined : undefined)
-    if (normalizedEffort !== undefined && !efforts.includes(normalizedEffort)) throw new Error('llm-commandcode: defaultEffort is not offered for ' + model.id)
-    const defaultEffort = model.thinking === false ? undefined : defaultEffortForCommandCodeModel(effortModel)
+    // A saved effort the current table no longer offers must not brick the whole
+    // provider: drop it and keep the model. The settings UI only offers valid levels.
+    const offeredEffort = normalizedEffort !== undefined && efforts.includes(normalizedEffort) ? normalizedEffort : undefined
+    const defaultEffort = model.thinking === false
+      ? undefined
+      : defaultEffortForCommandCodeModel({
+        id: model.id,
+        ...(offeredEffort === undefined ? {} : { defaultEffort: offeredEffort }),
+        ...(overlayEfforts === undefined ? {} : { thinkingEfforts: overlayEfforts }),
+      })
+    const thinkingEfforts = effortsForCommandCodeModel({ id: model.id }).length > 0 ? undefined : overlayEfforts
     const input = model.inputModalities === undefined
       ? inputModalitiesForCommandCodeModel(model.id)
       : model.inputModalities.length === 0
@@ -171,6 +187,7 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
       ...(model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens }),
       ...(effectiveThinking === undefined ? {} : { thinking: effectiveThinking }),
       ...(persistedEffort === undefined ? {} : { defaultEffort: persistedEffort }),
+      ...(thinkingEfforts === undefined ? {} : { thinkingEfforts }),
       inputModalities: [...input],
     }
   })
@@ -203,7 +220,32 @@ function failure(message: string) {
   return { ok: false as const, error: { code: 'internal' as const, message, details: {} } }
 }
 
+/** Failure codes that mean this route has no usable credential for its account. */
+const CREDENTIAL_FAILURE_CODES: ReadonlySet<string> = new Set([INVALID_CREDENTIAL_CODE, 'MISSING_CREDENTIAL'])
+
+/**
+ * Answer one quota failure on the wire instead of throwing it out of the handler,
+ * where the host would turn it into a gateway error. A missing or unusable
+ * credential answers {@link INVALID_CREDENTIAL_CODE}, the only code the shared
+ * provider-UI quota cache drops the previous account's entry for; any other
+ * LlmError keeps its own code, and a non-LlmError failure stays internal.
+ * @param error - thrown value from credential resolution or the account read.
+ */
+export function usageFailure(error: unknown) {
+  if (!(error instanceof LlmError)) return failure(error instanceof Error ? error.message : 'Command Code usage read failed')
+  return {
+    ok: false as const,
+    error: {
+      code: CREDENTIAL_FAILURE_CODES.has(error.code) ? INVALID_CREDENTIAL_CODE : error.code,
+      message: error.message,
+      details: {},
+    },
+  }
+}
+
 export function apply(ctx: Context, config: Config): void {
+  if (!allowDshRuntime(ctx.logger, 'dsh-llm-commandcode', ['@deepseek-ai/dsh-llm'])) return
+
   let current: () => Config = () => config
   let lastRaw: Config | undefined
   let lastGood: CommandCodeConnectionOptions | undefined
@@ -299,12 +341,12 @@ export function apply(ctx: Context, config: Config): void {
         if (endpoint === COMMANDCODE_USAGE_ENDPOINT) {
           const request = decodeCommandCodeUsageRequest(payload)
           if (request === undefined) return failure('invalid Command Code usage request')
-          if (!options().usageEnabled) return { ok: true as const, value: { status: 'unsupported' as const } }
           try {
+            if (!options().usageEnabled) return { ok: true as const, value: { status: 'unsupported' as const } }
             const result = await readCommandCodeUsage({ signal }, storedApiKey)
             return { ok: true as const, value: result }
           } catch (error: unknown) {
-            return failure(error instanceof Error ? error.message : 'Command Code usage read failed')
+            return usageFailure(error)
           }
         }
         if (endpoint === COMMANDCODE_SAVE_ENDPOINT) {

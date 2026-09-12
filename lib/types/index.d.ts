@@ -30,6 +30,22 @@ export interface Config {
 }
 export declare const Config: z<Config>;
 export declare function resolveAdapterOptions(config: Config): CommandCodeConnectionOptions;
+/**
+ * Answer one quota failure on the wire instead of throwing it out of the handler,
+ * where the host would turn it into a gateway error. A missing or unusable
+ * credential answers {@link INVALID_CREDENTIAL_CODE}, the only code the shared
+ * provider-UI quota cache drops the previous account's entry for; any other
+ * LlmError keeps its own code, and a non-LlmError failure stays internal.
+ * @param error - thrown value from credential resolution or the account read.
+ */
+export declare function usageFailure(error: unknown): {
+    ok: false;
+    error: {
+        code: string;
+        message: string;
+        details: {};
+    };
+};
 export declare function apply(ctx: Context, config: Config): void;
 export type { CommandCodeSettingsView };
 //# sourceMappingURL=index.d.ts.map

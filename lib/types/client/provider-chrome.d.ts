@@ -1,19 +1,8 @@
 /** Shared LLM provider navigation chrome. */
-import type { CSSProperties, ReactNode } from 'react';
-/** Install the provider globe icon and remove the observer on teardown. */
-export declare function installProvidersNavIcon(): () => void;
-export declare const providerHeaderStyle: CSSProperties;
-/** Join account state and model count in the standard provider header. */
-export declare function formatProviderSummary(status: string, modelsLabel: string): string;
-/** Standard provider card header used by the shared LLM Providers page. */
-export declare function ProviderCardHeader(props: {
-    title: string;
-    mark: ReactNode;
-    summary: string;
-    open: boolean;
-    unsaved?: boolean;
-    unsavedLabel?: string;
-}): ReactNode;
+import type { ReactNode } from 'react';
+/** Canonical shared header: delete per-provider fork, re-export built artifact. */
+export { ProviderCardHeader, ProviderQuotaMeter, providerUiCss } from 'dsh-llm-providers-ui/provider-ui';
+export type { ProviderCardHeaderProps, ProviderQuotaMeterProps, ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 /** Standard compact usage reset caption. */
 export declare function UsageResetAt(props: {
     label: string | undefined;

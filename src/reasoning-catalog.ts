@@ -30,6 +30,7 @@ const OFFICIAL_EFFORTS: Readonly<Record<string, readonly string[]>> = {
   'deepseek/deepseek-v4-flash': HIGH_MAX,
   'deepseek/deepseek-v4-flash-vision-exp': HIGH_MAX,
   'deepseek/deepseek-v4-flash-fast': LOW_HIGH_MAX,
+  'deepseek/deepseek-v4.1-flash': LOW_HIGH_MAX,
   'moonshotai/kimi-k3': LOW_HIGH_MAX,
   'moonshotai/kimi-k2.7-code': LOW_HIGH_MAX,
   'moonshotai/kimi-k2.7-code-highspeed': LOW_HIGH_MAX,
@@ -85,6 +86,13 @@ const DEFAULT_EFFORTS: Readonly<Record<string, string>> = {
 }
 
 const EFFORT_RANK = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+const CANON_EFFORTS = new Set<string>(EFFORT_RANK)
+
+/** Map a models.dev / wire effort token onto the plugin's level ids. */
+export function canonCommandCodeEffort(value: string): string | undefined {
+  const key = value.toLowerCase()
+  return CANON_EFFORTS.has(key) ? key : undefined
+}
 
 function highestEffort(efforts: readonly string[]): string | undefined {
   return [...EFFORT_RANK].reverse().find(effort => efforts.includes(effort)) ?? efforts.at(-1)
@@ -92,7 +100,7 @@ function highestEffort(efforts: readonly string[]): string | undefined {
 
 /** Return a valid explicit default; every model with efforts gets one. */
 export function defaultEffortForCommandCodeModel(
-  model: Pick<CommandCodeModelConfig, 'id' | 'defaultEffort'>,
+  model: Pick<CommandCodeModelConfig, 'id' | 'defaultEffort' | 'thinkingEfforts'>,
 ): string | undefined {
   const efforts = effortsForCommandCodeModel(model)
   if (efforts.length === 0) return undefined
@@ -111,6 +119,8 @@ export const EFFORT_LABELS: Readonly<Record<string, string>> = {
   low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max',
 }
 
-export function effortsForCommandCodeModel(model: Pick<CommandCodeModelConfig, 'id'>): readonly string[] {
-  return OFFICIAL_EFFORTS[model.id.toLowerCase()] ?? []
+export function effortsForCommandCodeModel(
+  model: Pick<CommandCodeModelConfig, 'id' | 'thinkingEfforts'>,
+): readonly string[] {
+  return OFFICIAL_EFFORTS[model.id.toLowerCase()] ?? model.thinkingEfforts ?? []
 }

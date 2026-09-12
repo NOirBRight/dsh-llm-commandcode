@@ -1,4 +1,52 @@
+## v0.1.23
+
+- 详情页改用共享模板 `ProviderDetail`（由设置页通过 slot 上下文下发，插件不再自带模板与样式）。
+- 模型行交给模板渲染：`items`（行数据）+ `extra`（该行的上下文窗口、能力勾选、默认思考等级等私有字段），插件不再画行卡片；行内字段固定列槽、排序态只读并收起、单层圆角。
+- 详情模式下插件不再自行请求额度（`props.mode === 'detail'` 时直接返回），额度由设置页的共享缓存提供，右上角刷新走 `props.onRefresh`。
+- 高级设置按原型：分隔线区块 + 折叠箭头 + 右侧说明，选项为「复选框 + 缩进说明」。
+- 移动端：工具栏与标题同一行（无换行、无溢出），窄屏自动收紧。
+- 依赖 `dsh-llm-providers-ui` 升级到 `0.2.0`（破坏性接口：必须使用 slot 下发的 `template`/`copy` 与 `items`/`extra`）。
+
 # Changelog
+
+## [0.1.22] - 2026-09-10
+
+### Added
+
+- DeepSeek V4.1 Flash: vision plus `low`/`high`/`max` (default `max`), from the official `command-code@1.53.0` model table.
+- Fill ids the CLI table does not describe from models.dev same-id rows, preferring OpenRouter; ids no source describes stay unknown rather than guessed.
+- Persisted `thinkingEfforts` so an overlay-filled model keeps its effort selector across a save.
+
+### Fixed
+
+- A saved `defaultEffort` the current table no longer offers is dropped instead of failing config validation. Previously one unknown model made the whole provider card unreadable until the settings file was edited by hand.
+- Fetch no longer waits on a slow models.dev dump, and refreshes a warm overlay once when the listing contains an id no source describes.
+- Missing-owner diagnostic uses `COMMANDCODE_SETTINGS_NAMESPACE` and waits out a 15s grace window so a late `providers` section registration is not a false alarm.
+- Card `fetchUsage` purges the shared quota cache when the Host answers `INVALID_CREDENTIAL`, so a rejected or absent key cannot keep the previous account's headline.
+
+### Changed
+
+- DSH peer/dev declarations and verified runtimes include `0.1.5-rc.1` alongside Alpha.4 and `0.1.2-rc.1`.
+
+## [0.1.21] - 2026-09-09
+
+- Advertise image input for `xai/grok-4.6`.
+
+## [0.1.20] - 2026-09-07
+
+### Changed
+
+- Adopt the shared provider-ui header from `dsh-llm-providers-ui` 0.1.10; remove the per-provider header fork.
+- Header quota loads collapsed with idle dedup so expansion never refires; a failed read shows a truthful unavailable dash, never a fabricated percent.
+- Development dependency now points at the final `dsh-llm-providers-ui` 0.1.10 release URL with pinned integrity.
+
+## [0.1.19] - 2026-09-03
+
+### Changed
+
+- DSH compatibility declarations cover the verified Alpha.4 and rc.1 runtimes.
+- Unknown runtimes warn once and use the normal best-effort mount path; only reproduced failures may be blocklisted.
+
 
 ## 0.1.18 - 2026-09-03
 

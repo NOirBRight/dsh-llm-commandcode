@@ -69,4 +69,17 @@ describe('Command Code account quota', () => {
     await expect(readCommandCodeUsage({}, async () => undefined, fetchImpl)).rejects.toMatchObject({ code: 'MISSING_CREDENTIAL' })
     expect(fetchImpl).not.toHaveBeenCalled()
   })
+
+  it('fails the whole read when an account endpoint rejects the key', async () => {
+    for (const status of [401, 403]) {
+      const fetchImpl = vi.fn(async () => new Response('', { status }))
+      await expect(readCommandCodeUsage({}, async () => 'key', fetchImpl)).rejects.toMatchObject({
+        code: 'INVALID_CREDENTIAL',
+        message: expect.stringContaining('HTTP ' + String(status)),
+      })
+      // The rejected credential ends the read at the first probe instead of
+      // collecting the remaining endpoints as optional failures.
+      expect(fetchImpl).toHaveBeenCalledTimes(1)
+    }
+  })
 })

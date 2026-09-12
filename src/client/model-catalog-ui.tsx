@@ -72,9 +72,6 @@ export function ModelCatalogRowGrid({ children }: { children: ReactNode }): Reac
   return <div style={modelContentStyle}>{children}</div>
 }
 
-function Capability({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled?: boolean | undefined; onChange: (value: boolean) => void }): ReactNode {
-  return <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}><input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />{label}</label>
-}
 
 export interface ModelCatalogFieldsProps {
   contextWindow: string
@@ -124,18 +121,30 @@ export function ModelCatalogFields(props: ModelCatalogFieldsProps): ReactNode {
     disabled,
   } = props
   return (
-    <ModelCatalogDetails>
-      <ModelCatalogRow>
-        <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}><span style={labelStyle}>{contextLabel}</span><input style={inputStyle} inputMode="numeric" value={contextWindow} placeholder={contextPlaceholder} disabled={disabled} aria-label={contextLabel} onChange={event => onContextWindowChange(event.target.value)} /></label>
-      </ModelCatalogRow>
-      <ModelCatalogCapabilities>
-        <Capability label={visionLabel} checked={visionChecked} disabled={disabled} onChange={onVisionChange} />
-        <Capability label={thinkingLabel} checked={thinkingChecked} disabled={disabled || thinkingDisabled} onChange={onThinkingChange} />
-        {showDefaultThinking ? (
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...labelStyle }}><span style={labelStyle}>{defaultThinkingLabel}</span><select style={selectStyle} value={defaultThinkingValue ?? defaultThinkingOptions[0] ?? ''} disabled={disabled} aria-label={defaultThinkingLabel} onChange={event => onDefaultThinkingChange?.(event.target.value)}>{defaultThinkingOptions.map(option => <option key={option} value={option}>{getOptionLabel ? getOptionLabel(option) : option}</option>)}</select></label>
-        ) : null}
-      </ModelCatalogCapabilities>
-    </ModelCatalogDetails>
+    <div className="c-extra-grid">
+      <label className="c-field">
+        <span className="c-field-label">{contextLabel}</span>
+        <input className="c-input" inputMode="numeric" value={contextWindow} placeholder={contextPlaceholder} disabled={disabled} aria-label={contextLabel} onChange={event => onContextWindowChange(event.target.value)} />
+      </label>
+      <div className="c-extra-checks">
+        <label>
+          <input type="checkbox" checked={visionChecked} disabled={disabled} onChange={event => onVisionChange(event.target.checked)} />
+          {visionLabel}
+        </label>
+        <label>
+          <input type="checkbox" checked={thinkingChecked} disabled={disabled || thinkingDisabled} onChange={event => onThinkingChange(event.target.checked)} />
+          {thinkingLabel}
+        </label>
+      </div>
+      {showDefaultThinking ? (
+        <label className="c-field">
+          <span className="c-field-label">{defaultThinkingLabel}</span>
+          <select className="c-input" value={defaultThinkingValue ?? defaultThinkingOptions[0] ?? ''} disabled={disabled} aria-label={defaultThinkingLabel} onChange={event => onDefaultThinkingChange?.(event.target.value)}>
+            {defaultThinkingOptions.map(option => <option key={option} value={option}>{getOptionLabel ? getOptionLabel(option) : option}</option>)}
+          </select>
+        </label>
+      ) : null}
+    </div>
   )
 }
 

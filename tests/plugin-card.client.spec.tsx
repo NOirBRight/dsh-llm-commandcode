@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ProviderDetail, providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
 import { CommandCodeSettingsCard } from '../src/client/CommandCodeSettingsCard.tsx'
 import { en } from '../src/client/locales.ts'
 import type { CommandCodeSettingsView } from '../src/client-contract.ts'
@@ -57,13 +58,11 @@ describe('plugin-card layout (opencode baseline)', () => {
     expect(pos(visionBox, reasoningBox)).toBe(-1)
     expect(pos(reasoningBox, defaultThinking)).toBe(-1)
 
-    // Context first row is full width 36h via shared inputStyle token
+    // Fields use the shared template classes in every layout
     expect(catalogStyles.inputStyle.minHeight).toBe(36)
-    // The rendered Context input uses the 36h token
-    expect(contextInput.style.minHeight || getComputedStyle(contextInput).minHeight).toContain('36')
-    // Its wrapper spans full width (gridColumn 1 / -1)
+    expect(contextInput.className).toContain('c-input')
     const contextLabel = contextInput.closest('label') as HTMLElement
-    expect(contextLabel.style.gridColumn).toBe('1 / -1')
+    expect(contextLabel.className).toContain('c-field')
 
     // Second row contains Vision/Thinking/Default in order and uses flex wrap
     expect(catalogStyles.capabilitiesStyle.display).toBe('flex')
@@ -71,19 +70,6 @@ describe('plugin-card layout (opencode baseline)', () => {
     // capabilities container should follow the Context row
     const contextRow = contextLabel.closest('div') as HTMLElement
     expect(pos(contextRow, capabilitiesRow)).toBe(-1)
-
-    // Default thinking select is 32px via shared selectStyle token
-    expect(catalogStyles.selectStyle.minHeight).toBe(32)
-    expect(defaultThinking.style.minHeight || getComputedStyle(defaultThinking).minHeight).toContain('32')
-    // custom arrow on select
-    expect(String(catalogStyles.selectStyle.backgroundImage)).toContain('data:image/svg+xml')
-    expect(String(catalogStyles.selectStyle.backgroundImage)).toContain('M4 6l4 4 4-4')
-    expect(defaultThinking.style.backgroundImage).toContain('data:image/svg+xml')
-    expect(defaultThinking.style.appearance).toBe('none')
-    expect(container.innerHTML).toContain('Context window')
-  })
-
-  it('select token is 32px and catalog uses shared tokens', () => {
     expect(catalogStyles.selectStyle.minHeight).toBe(32)
     expect(catalogStyles.inputStyle.minHeight).toBe(36)
     expect(catalogStyles.rowInputStyle.minHeight).toBe(32)
@@ -100,6 +86,18 @@ describe('plugin-card layout (opencode baseline)', () => {
     expect(String(catalogStyles.selectStyle.backgroundImage)).toContain('data:image/svg+xml')
     expect(catalogStyles.selectStyle.appearance).toBe('none')
     expect(catalogStyles.selectStyle.backgroundPosition).toBe('right 8px center')
+  })
+
+  it('select token is 32px and catalog uses shared tokens', () => {
+    // The catalog tokens stay available for the legacy rows the card still renders.
+    expect(catalogStyles.selectStyle.minHeight).toBe(32)
+    expect(catalogStyles.inputStyle.minHeight).toBe(36)
+    expect(catalogStyles.rowInputStyle.minHeight).toBe(32)
+    expect(catalogStyles.modelDetailStyle.display).toBe('flex')
+    expect(catalogStyles.modelDetailStyle.flexDirection).toBe('column')
+    expect(catalogStyles.rowStyle.display).toBe('grid')
+    expect(catalogStyles.capabilitiesStyle.display).toBe('flex')
+    expect(String(catalogStyles.selectStyle.backgroundImage)).toContain('data:image/svg+xml')
   })
 
   it('preserves cursor-specific fields thinking, vision, defaultEffort', async () => {
@@ -124,17 +122,14 @@ describe('plugin-card layout (opencode baseline)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Model details/ }))
     const reasoning = screen.getByLabelText('Reasoning') as HTMLInputElement
     const select = screen.getByLabelText('Default thinking') as HTMLSelectElement
-    expect(select.style.minHeight).toBe('32px')
-    expect(select.style.backgroundImage).toContain('data:image/svg+xml')
-    expect(select.style.appearance).toBe('none')
+    expect(select.className).toContain('c-input')
     // conditional: uncheck hides select
     fireEvent.click(reasoning)
     expect(screen.queryByLabelText('Default thinking')).toBeNull()
     // re-check shows select again with same 32px+arrow
     fireEvent.click(reasoning)
     const restored = screen.getByLabelText('Default thinking') as HTMLSelectElement
-    expect(restored.style.minHeight).toBe('32px')
-    expect(restored.style.backgroundImage).toContain('data:image/svg+xml')
+    expect(restored.className).toContain('c-input')
   })
 
   it('ModelCatalogFields isolates order Vision->Thinking->Default thinking and conditional', () => {
@@ -164,8 +159,7 @@ describe('plugin-card layout (opencode baseline)', () => {
     expect(pos(context, vision)).toBe(-1)
     expect(pos(vision, reasoning)).toBe(-1)
     expect(pos(reasoning, select)).toBe(-1)
-    expect(select.style.minHeight).toBe('32px')
-    expect(select.style.backgroundImage).toContain('data:image/svg+xml')
+    expect(select.className).toContain('c-input')
     // hide when thinking disabled
     rerender(
       <ModelCatalogFields
@@ -184,5 +178,47 @@ describe('plugin-card layout (opencode baseline)', () => {
       />
     )
     expect(screen.queryByLabelText(en.defaultThinking)).toBeNull()
+  })
+
+  it('toggles explicit model sort mode while keeping model input state', () => {
+    const customSettings: CommandCodeSettingsView = { ...settings, models: [{ id: 'b' }, { id: 'a' }] }
+    render(<CommandCodeSettingsCard {...props({}, customSettings)} />)
+    fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Model catalog' }))
+    const first = screen.getByLabelText('Model ID 1') as HTMLInputElement
+    fireEvent.change(first, { target: { value: 'b-edited' } })
+    expect(first.value).toBe('b-edited')
+    expect(screen.queryByRole('button', { name: en.moveUp + ': b-edited' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: en.sortModels }))
+    expect(screen.getByRole('button', { name: en.doneSorting })).toBeTruthy()
+    expect((screen.getByLabelText('Model ID 1') as HTMLInputElement).value).toBe('b-edited')
+    expect(screen.getByRole('button', { name: en.moveUp + ': b-edited' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.doneSorting }))
+    expect(screen.getByRole('button', { name: en.sortModels })).toBeTruthy()
+    expect((screen.getByLabelText('Model ID 1') as HTMLInputElement).value).toBe('b-edited')
+  })
+  it('renders the shared detail template when the settings page asks for it', () => {
+    const onRefresh = vi.fn()
+    const usage = {
+      status: 'ready' as const,
+      fetchedAt: '2026-09-12T00:00:00.000Z',
+      windows: [
+        { id: 'daily', label: 'Day', shortLabel: 'D', remainingPercent: 42, valueText: '42%' },
+        { id: 'weekly', label: 'Week', shortLabel: 'W', remainingPercent: 88, valueText: '88%' },
+      ],
+    }
+    const { container } = render(<CommandCodeSettingsCard {...props({ mode: 'detail', usage, accountState: 'configured', onRefresh, copy: providerDetailCopy.en, template: ProviderDetail })} />)
+
+    expect(container.querySelector('[data-provider-detail]')).not.toBeNull()
+    expect(container.querySelectorAll('[data-c-quota]')).toHaveLength(1)
+    expect(container.textContent).toContain('42%')
+    expect(container.textContent).toContain('88%')
+    // Zero-data-retention stays available, folded into the advanced block.
+    const advanced = container.querySelector('details.c-advanced')
+    expect(advanced).not.toBeNull()
+    expect((advanced as HTMLDetailsElement).open).toBe(false)
+    expect(advanced?.textContent).toContain(en.zdr)
+    // The plugin's own quota section is gone in detail mode.
+    expect(container.querySelector('[aria-label="' + en.quota + '"]')).toBeNull()
   })
 })

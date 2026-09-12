@@ -6,15 +6,24 @@ DeepSeek Harness 的 Command Code Provider API 插件。独立 provider 路由�
 
 包根入口公开 Cordis plugin contract。同一 artifact 还导出 `./client`，在 Settings → LLM Providers 中提供 Command Code 卡片。
 
+## 兼容性
+
+已验证运行时是 DeepSeek Harness `0.1.2-alpha.4`、`0.1.2-rc.1` 与 `0.1.5-rc.1`（Cordis `4.0.2`）；这份记录只是证据，不是 allowlist。
+
+未知的新版本会先打一条 warning，再按正常挂载路径 best-effort 尝试，不会因为未验证而跳过。
+
+只有复现过的故障才会加入 blocklist；受影响版本、原因和证据见[兼容性记录](package.json)。
+
+
 ## 安装
 
-需要 DeepSeek Harness `0.1.2-alpha.4`。直接从 GitHub 安装：
+已在 DeepSeek Harness `0.1.2-alpha.4`、`0.1.2-rc.1` 与 `0.1.5-rc.1` 验证。直接从 GitHub 安装：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/dsh-llm-commandcode-0.1.22.tgz
 dsh web
 ~~~
 
@@ -46,7 +55,7 @@ ssh -L 3080:127.0.0.1:3080 user@host
 
 ![Command Code 连接、可选 ZDR 与账户额度](docs/images/plugin-card.png)
 
-目录默认折叠。**Fetch models** 打开按 Go / Pro / Provider+ 分组的 overlay，勾选后再加入。每一行可展开上下文、最大输出和官方 effort；拖动排序，垃圾桶删除。能力覆盖以实时 Provider API 和 2026-09-03 的 `command-code@1.44.0` 已发布模型目录快照为来源。保存的默认值：GLM-5.3 Flash 和所有 DeepSeek 用 `max`；Fable 5.1 用 `high`；新增 Qwen、Hy4、Gemini 使用各自最高档；Muse Spark 1.3 按前瞻策略用 `max`；GPT 对齐本地 Codex（Sol `high`、Terra `xhigh`、Luna `max`，其余 GPT 优先 `xhigh`，非法档位回退）。没有可选等级的模型（例如 LongCat 2.0）保留 provider 原生 reasoning，不伪造选择器。有效的已存覆盖优先。
+目录默认折叠。**Fetch models** 打开按 Go / Pro / Provider+ 分组的 overlay，勾选后再加入。每一行可展开上下文、最大输出和官方 effort；拖动排序，垃圾桶删除。能力覆盖以实时 Provider API 加官方 CLI 模型表为来源（DeepSeek V4.1 Flash 来自 `command-code@1.53.0`）。表里没有的 id 按同名从 models.dev 补齐（优先 OpenRouter）；两边都没有的保持未知，不做猜测。保存的默认值：GLM-5.3 Flash 和所有 DeepSeek 用 `max`；Fable 5.1 用 `high`；新增 Qwen、Hy4、Gemini 使用各自最高档；Muse Spark 1.3 按前瞻策略用 `max`；GPT 对齐本地 Codex（Sol `high`、Terra `xhigh`、Luna `max`，其余 GPT 优先 `xhigh`，非法档位回退）。没有可选等级的模型（例如 LongCat 2.0）保留 provider 原生 reasoning，不伪造选择器。有效的已存覆盖优先。
 
 ![可排序的 Command Code 模型目录与官方 effort 选项](docs/images/model-catalog.png)
 
@@ -80,7 +89,7 @@ API key 只在浏览器输入，由 Host credentials service 保存；provider R
 
 额度与聊天分离。Host 按官方 CLI 的非公开账户接口 best-effort 请求 `https://api.commandcode.ai` 上的 `/alpha/whoami`、`/alpha/billing/credits`、`/alpha/billing/subscriptions`、`/alpha/usage/summary`。失败不影响聊天。`usageEnabled: false` 可关掉面板。
 
-卡片显示账户名、套餐、月度/购买/free credits、5 小时和每周窗口，以及可用的周期成本/tokens 和刷新时间。
+卡片显示账户名、套餐、月度/购买/free credits、5 小时和每周窗口，以及可用的周期成本/tokens 和刷新时间。折叠标题会回退到共享浏览器缓存中上次成功的额度；写入新密钥会在每个 bundle 副本里清掉缓存（即使没有 providerDirectory）；Host 以 `INVALID_CREDENTIAL` 回答的额度读取同样会清掉。
 
 ## 验证
 
@@ -104,42 +113,38 @@ Provider API 文档：https://commandcode.ai/docs/provider
 
 请在 profile 中与 provider 插件一起显式安装 `dsh-llm-providers-ui`（见其 `cordis.patch.yml`）。
 
+## 正式版安装
 
-## 正式版安装（Latest）
-
-Command Code Provider API chat, model discovery, credentials, and quota reporting. 正式成品只支持 DeepSeek Harness 0.1.2-alpha.4；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
+Command Code Provider API chat, model discovery, credentials, and quota reporting. 正式成品按上方兼容性记录运行（含 `0.1.5-rc.1`）；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
 
 LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
 
-Owner（Latest）：
+Latest（Owner + 本插件；Web 必须一起装）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.3.tgz
-~~~
-
-本 Provider（Latest）：
-
-~~~sh
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode-0.1.22.tgz
 ~~~
 
 固定版本（可复现）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/dsh-llm-commandcode-0.1.18.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/dsh-llm-commandcode-0.1.22.tgz
 ~~~
 
 更新、卸载与验证：
 
 ~~~sh
-# 更新到最新 Release
+# 更新 Owner + 本插件到 Latest
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode-0.1.22.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -149,6 +154,6 @@ dsh plugin --profile web remove dsh-llm-commandcode
 
 配置入口：Web 使用「设置」中的本插件页面；Host-only 插件使用 profile 的 dsh.profile.bundles 配置。先复制本 README 的最小 YAML/JSON 示例，再填写凭据或后端地址。
 
-回滚：重新执行固定版本 v0.1.17 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
+回滚：重新执行固定版本 v0.1.22-015rc1d 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.1.18](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.18) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.18/SHA256SUMS)。
+Release 与完整性：[v0.1.22-015rc1d](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.22-015rc1d) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.22-015rc1d/SHA256SUMS)。

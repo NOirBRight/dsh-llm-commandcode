@@ -34,21 +34,25 @@ import type { CommandCodeSettingsKey } from './locales.ts'
 
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface SlotMap {
-    'settings.provider.item': { kind: 'keyed'; scope: 'root' }
-  }
-}
-declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     'settings.commandcode': CommandCodeSettingsKey
   }
 }
 
+import type {} from 'dsh-llm-providers-ui/client';
+import { createCommandCodeUsageReader, dropPersistedUsageKeys } from 'dsh-llm-providers-ui/usage-readers';
 import { CommandCodeSettingsCard } from './CommandCodeSettingsCard.tsx'
 import type { CommandCodeCardFace } from './CommandCodeSettingsCard.tsx'
 import { en, zh } from './locales.ts'
 export const name = 'dsh-llm-commandcode-client'
 export const inject = ['slots', 'locale', 'connection']
+
+/**
+ * Grace window before the missing-owner warning fires: the LLM Providers owner registers its
+ * `settings.section` entry only once the settings snapshot is ready and the page is visible, so an
+ * immediate check always runs too early and reports a false alarm.
+ */
+const MISSING_OWNER_GRACE_MS = 15_000
 
 /** Register the Command Code card inside the shared LLM Providers section. */
 
@@ -87,6 +91,8 @@ export function apply(ctx: Context): void {
   const storeApiKey: CommandCodeCardFace['storeApiKey'] = async (value) => {
     const result = await callPlugin(COMMANDCODE_CREDENTIAL_SET_ENDPOINT, { apiKey: value })
     if (!result.ok) throw new Error(result.error.message)
+    dropPersistedUsageKeys([COMMANDCODE_SETTINGS_NAMESPACE])
+    ctx.get('providerDirectory')?.invalidateUsage(COMMANDCODE_SETTINGS_NAMESPACE)
   }
   const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async (settings) => {
     const current = scope.getSnapshot()
@@ -108,7 +114,12 @@ export function apply(ctx: Context): void {
   }
   const fetchUsage: CommandCodeCardFace['fetchUsage'] = async () => {
     const result = await callPlugin(COMMANDCODE_USAGE_ENDPOINT, {})
-    if (!result.ok) throw new Error(result.error.message)
+    if (!result.ok) {
+      // Host answers a missing/unusable key as INVALID_CREDENTIAL; purge every
+      // bundle copy so the collapsed header cannot keep the previous account.
+      if (result.error.code === 'INVALID_CREDENTIAL') dropPersistedUsageKeys([COMMANDCODE_SETTINGS_NAMESPACE])
+      throw new Error(result.error.message)
+    }
     const decoded = decodeCommandCodeUsageReply(result.value)
     if (decoded === undefined) throw new Error(t('quotaFailed'))
     if (decoded.status === 'unsupported') return { status: 'unsupported' }
@@ -145,18 +156,43 @@ export function apply(ctx: Context): void {
       closeModelPicker: picker.close,
     }),
   }, CommandCodeSettingsCard))
+  ctx.inject(['providerDirectory'], (ctx) => {
+    ctx.effect(
+      () => ctx.providerDirectory.register({
+        key: COMMANDCODE_SETTINGS_NAMESPACE,
+        name: 'CommandCode',
+        role: 'llm',
+        header: 'shared',
+        // The card renders the shared detail template; the settings page adds only the breadcrumb.
+        detail: 'shared',
+        usage: createCommandCodeUsageReader(),
+        modelCount: () => scope.getSnapshot().value?.models?.length,
+      }),
+      'dsh-llm-commandcode: provider directory',
+    )
+  })
   ctx.effect(() => {
     let warned = false
+    const hasProvidersSection = (): boolean =>
+      ctx.slots.entries('settings.section').some(entry => entry.options.id === 'providers')
     const check = (): void => {
-      const hasProvidersSection = ctx.slots.entries('settings.section').some(entry => entry.options.id === 'providers')
-      if (!hasProvidersSection && !warned) {
-        warned = true
-        console.warn(`[dsh-llm-providers-ui] LLM Providers page missing for card ${"llm-commandcode"}: install dsh-llm-providers-ui to show the card. Host route remains active.`)
-      }
+      if (hasProvidersSection() || warned) return
+      warned = true
+      console.warn(`[dsh-llm-providers-ui] LLM Providers page missing for card ${COMMANDCODE_SETTINGS_NAMESPACE}: install dsh-llm-providers-ui to show the card. Host route remains active.`)
     }
-    check()
-    const dispose = ctx.slots.subscribe('settings.section', check)
-    return dispose
+    // The owner registers the providers section only after the settings snapshot
+    // arrives and the page becomes visible, so an immediate check always runs
+    // ahead of it: grant a grace period and cancel the warning on registration.
+    const timer = setTimeout(check, MISSING_OWNER_GRACE_MS)
+    const stop = ctx.slots.subscribe('settings.section', () => {
+      if (!hasProvidersSection()) return
+      clearTimeout(timer)
+      warned = true
+    })
+    return () => {
+      clearTimeout(timer)
+      stop()
+    }
   }, 'dsh-llm-providers-ui: missing owner diagnostic')
 
 }

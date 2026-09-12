@@ -68,10 +68,9 @@ describe('CommandCodeSettingsCard', () => {
     expect(screen.queryByText('Low · Medium · High · Extra high · Max')).toBeNull()
     const thinkingSelect = screen.getByRole('combobox', { name: 'Default thinking' }) as HTMLSelectElement
     expect(thinkingSelect.value).toBe('max')
-    // Default thinking must use selectStyle (32h with arrow), not inputStyle (36h)
-    expect(thinkingSelect.style.minHeight).toBe('32px')
-    expect(thinkingSelect.style.backgroundImage).toContain('svg')
-    expect(thinkingSelect.style.paddingRight).toContain('28px')
+    // Default thinking renders with the shared field classes
+    expect(thinkingSelect.className).toContain('c-input')
+    expect(thinkingSelect.className).toContain('c-input')
     // shared tokens: 36h input vs 32h row/select
     expect(String(catalogStyles.inputStyle.minHeight)).toBe('36')
     expect(String(catalogStyles.selectStyle.minHeight)).toBe('32')
@@ -81,7 +80,13 @@ describe('CommandCodeSettingsCard', () => {
     expect((screen.getByRole('textbox', { name: 'Provider API URL' }) as HTMLInputElement).disabled).toBe(true)
     await waitFor(() => expect(screen.getByText(/demo-user/)).toBeTruthy())
     expect(screen.getByText(/\$15\.00/)).toBeTruthy()
-    expect(screen.getByText(/\$3\.00 \/ \$10\.00/)).toBeTruthy()
+    for (const meter of screen.getAllByRole('meter', { name: en.fiveHour })) {
+      expect(meter.getAttribute('aria-valuenow')).toBe('70')
+    }
+    for (const meter of screen.getAllByRole('meter', { name: en.weekly })) {
+      expect(meter.getAttribute('aria-valuenow')).toBe('60')
+    }
+    expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.getByText(/Provider \(active\)/)).toBeTruthy()
   })
 
@@ -103,6 +108,28 @@ describe('CommandCodeSettingsCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(storeApiKey).toHaveBeenCalledWith('new-secret'))
     expect(saveConfiguration).toHaveBeenCalledWith({ ...settings, models: [{ ...settings.models[0]!, defaultEffort: 'max' }] })
+  })
+
+  it('keeps models.dev overlay efforts when the row is saved', async () => {
+    const overlayModel = {
+      id: 'vendor/future-model',
+      contextWindow: 128000,
+      thinking: true,
+      thinkingEfforts: ['low', 'high'],
+      defaultEffort: 'high',
+    }
+    const current = { ...settings, models: [overlayModel] }
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView) => ({ settings: next, revision: 2 }))
+    render(<CommandCodeSettingsCard {...props({ saveConfiguration }, current)} />)
+    fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
+    fireEvent.change(screen.getByPlaceholderText('Enter Command Code API key'), { target: { value: 'new-secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(saveConfiguration).toHaveBeenCalledTimes(1))
+    expect(saveConfiguration.mock.calls[0]?.[0]?.models[0]).toMatchObject({
+      id: 'vendor/future-model',
+      thinkingEfforts: ['low', 'high'],
+      defaultEffort: 'high',
+    })
   })
 
   it('keeps public discovery credential-free and endpoint-free', async () => {
