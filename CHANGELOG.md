@@ -1,3 +1,7 @@
+## v0.1.26
+
+跟随 providers-ui 0.2.4 重建：月度窗口带上订阅 `currentPeriodEnd`，详情页显示官方同款月重置时间。
+
 ## v0.1.25
 
 - 详情页改用共享模板 `ProviderDetail`（由设置页通过 slot 上下文下发，插件不再自带模板与样式）。
