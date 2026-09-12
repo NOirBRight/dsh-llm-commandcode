@@ -1,3 +1,9 @@
+## v0.1.27
+
+重建客户端 bundle 与 lockfile。
+
+v0.1.26 只改了 package.json 钉 0.2.4，没有提交 `lib/client.js` / `pnpm-lock.yaml`，运行时仍是旧月度解码器。本次针对 providers-ui 0.2.5 重装并重建，月度窗口带上 `currentPeriodEnd`。
+
 ## v0.1.26
 
 跟随 providers-ui 0.2.4 重建：月度窗口带上订阅 `currentPeriodEnd`，详情页显示官方同款月重置时间。
