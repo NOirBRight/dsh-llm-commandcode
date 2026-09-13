@@ -28,7 +28,7 @@ Verified on DeepSeek Harness `0.1.2-alpha.4`, `0.1.2-rc.1`, and `0.1.5-rc.1`. In
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.30/dsh-llm-commandcode-0.1.30.tgz
 dsh web
@@ -122,7 +122,7 @@ Latest (Owner + this plugin; required together on Web):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.8.tgz
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode-0.1.30.tgz
 ~~~
@@ -131,7 +131,7 @@ Fixed versions (reproducible):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.30/dsh-llm-commandcode-0.1.30.tgz
 ~~~
@@ -141,7 +141,7 @@ Update, uninstall, and verify:
 ~~~sh
 # Reinstall Owner + this plugin (fixed tags)
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.8.tgz
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.30/dsh-llm-commandcode-0.1.30.tgz
 # Verify the loaded version
