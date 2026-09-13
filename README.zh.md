@@ -14,7 +14,7 @@ DeepSeek Harness 的 Command Code Provider API 插件。独立 provider 路由�
 
 ## 安装
 
-已在 DeepSeek Harness `0.1.2-alpha.4`、`0.1.2-rc.1` 与 `0.1.5-rc.1` 验证。直接从 GitHub 安装：
+已在 DeepSeek Harness `0.1.2-alpha.4`、`0.1.2-rc.1` 、`0.1.5-rc.1` 与 `0.1.5-rc.2` 验证。直接从 GitHub 安装：
 
 ~~~sh
 dsh plugin --profile web add --force \
@@ -112,7 +112,7 @@ Provider API 文档：https://commandcode.ai/docs/provider
 
 ## 正式版安装
 
-Command Code Provider API chat, model discovery, credentials, and quota reporting. 正式成品按上方兼容性记录运行（含 `0.1.5-rc.1`）；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
+Command Code Provider API chat, model discovery, credentials, and quota reporting. 正式成品按上方兼容性记录运行（含 `0.1.5-rc.1`、`0.1.5-rc.2`）；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
 
 LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
 
