@@ -14,10 +14,9 @@ import { COMMANDCODE_SETTINGS_NAMESPACE, PUBLIC_PROVIDER_BASE_URL } from '../cli
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, providerUiCss } from './provider-chrome.tsx'
+import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, providerUiCss, useProviderQuotaCache } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
-import { headerQuotaFromCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
 
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
@@ -413,7 +412,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
       const result = await props.fetchUsage()
       if (!live()) return
       if (result.status === 'unsupported') setUsage({ status: 'unsupported' })
-      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()); rememberHeadlineQuota(COMMANDCODE_SETTINGS_NAMESPACE, 'CommandCode', headlineQuotaOf(result.usage, t)) }
+      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()) }
     } catch (error: unknown) { if (live()) setUsage({ status: 'error', message: messageOf(error, t('quotaFailed')) }) }
   }
   // Header quota loads collapsed once the credential is ready; idle status dedups so expansion never refires.
@@ -464,13 +463,17 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const quotaWithheld = credential?.configured === false || usage.status === 'error' || usage.status === 'unsupported'
   // The verdict gates the entire header quota, not only the persisted fallback:
   // stale local lastUsage must not look fresh on error/unsupported either.
-  const headerQuota = quotaWithheld ? undefined : (liveQuota ?? headerQuotaFromCache(peekCachedUsage(COMMANDCODE_SETTINGS_NAMESPACE)))
+  const headerQuota = useProviderQuotaCache(COMMANDCODE_SETTINGS_NAMESPACE, 'CommandCode', liveQuota ?? null, {
+    answered: credential !== undefined,
+    signedOut: credential?.configured === false,
+    withheld: quotaWithheld,
+  })
   if (snapshot.status !== 'ready' || draft === undefined) {
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
         <style>{providerUiCss}</style>
         <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => { setOpen(current => !current) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary="" status="" open={open} role="llm" {...(headerQuota === undefined ? {} : { quota: headerQuota })} />
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary="" status="" open={open} role="llm" {...(headerQuota === null ? {} : { quota: headerQuota })} />
         </button>
       </li>
     )
@@ -600,7 +603,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
       <style>{providerUiCss}</style>
       <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => setOpen(current => !current)}>
         <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerCount} status={headerStatus} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} role="llm"
-          {...(headerQuota === undefined
+          {...(headerQuota === null
             ? (credential?.configured === true && (usage.status === 'error' || usage.status === 'unsupported')
               // Query attempted but no usable quota: unavailable dash, never a fabricated percent.
               ? { quota: { label: t('quota') } }

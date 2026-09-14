@@ -37,7 +37,7 @@ import { CommandCodeAdapter } from './adapter.ts'
 import type { CommandCodeConnectionOptions, CommandCodeModelConfig } from './types.ts'
 import { discoverModels } from './discovery.ts'
 import { readCommandCodeUsage } from './usage.ts'
-import { defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from './reasoning-catalog.ts'
+import { canonCommandCodeEffort, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from './reasoning-catalog.ts'
 import { inputModalitiesForCommandCodeModel } from './capability-catalog.ts'
 import { isPositiveInteger } from './numbers.ts'
 
@@ -137,6 +137,19 @@ export const Config: z<Config> = z.object({
   retryPolicy: RetryPolicySchema,
 })
 
+
+function normalizeThinkingEfforts(values: readonly string[] | undefined): string[] | undefined {
+  if (values === undefined || values.length === 0) return undefined
+  const out: string[] = []
+  for (const value of values) {
+    const effort = canonCommandCodeEffort(value)
+    if (effort === undefined) throw new Error('llm-commandcode: invalid thinkingEfforts token ' + value)
+    if (out.includes(effort)) throw new Error('llm-commandcode: duplicate thinkingEfforts token ' + effort)
+    out.push(effort)
+  }
+  return out
+}
+
 function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): CommandCodeModelConfig[] {
   const seen = new Set<string>()
   return [...models ?? DEFAULT_MODELS].map(model => {
@@ -149,7 +162,7 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
     if (model.thinking !== undefined && typeof model.thinking !== 'boolean') throw new Error('llm-commandcode: invalid thinking for ' + model.id)
     // Thinking persistence: when explicitly disabled, discard any persisted effort.
     const normalizedEffort = model.thinking === false ? undefined : model.defaultEffort
-    const overlayEfforts = model.thinkingEfforts === undefined || model.thinkingEfforts.length === 0 ? undefined : [...model.thinkingEfforts]
+    const overlayEfforts = normalizeThinkingEfforts(model.thinkingEfforts)
     const effortModel = {
       id: model.id,
       ...(normalizedEffort === undefined ? {} : { defaultEffort: normalizedEffort }),

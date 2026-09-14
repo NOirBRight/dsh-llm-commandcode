@@ -3,6 +3,10 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
+import {
+  COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
+  COMMANDCODE_SETTINGS_READ_ENDPOINT,
+} from '../src/client-contract.ts'
 import { clearProviderUsageCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 
 interface SlotEntry {
@@ -47,14 +51,14 @@ class FakeSlots extends Service {
   }
 }
 
-async function bench(): Promise<{ ctx: Context; slots: FakeSlots }> {
+async function bench(call = vi.fn(async () => ({ ok: true, value: { models: [], warnings: [] } }))): Promise<{ ctx: Context; slots: FakeSlots }> {
   const ctx = new Context()
   await ctx.plugin(FakeSlots).await()
   const slots = ctx.get('slots') as FakeSlots
   ctx.provide('locale', { register: () => () => undefined, bind: () => (key: string) => key })
   ctx.provide('connection', {
     isLoopback: true,
-    rpc: { call: vi.fn(async () => ({ ok: true, value: { models: [], warnings: [] } })) },
+    rpc: { call },
   })
   return { ctx, slots }
 }
@@ -175,6 +179,54 @@ describe('CommandCode client registration', () => {
     await face.storeApiKey('new-key')
     expect(peekCachedUsage('llm-commandcode')).toBeUndefined()
     clearProviderUsageCache()
+    await dispose(ctx, fiber)
+  })
+
+  it('keeps a saved account when an older management read finishes later', async () => {
+    let resolveRead: (value: unknown) => void
+    const olderRead = new Promise<unknown>(resolve => { resolveRead = resolve })
+    const call = vi.fn((_channel: string, endpoint: string) => {
+      if (endpoint === COMMANDCODE_SETTINGS_READ_ENDPOINT) return olderRead
+      if (endpoint === COMMANDCODE_CREDENTIAL_SET_ENDPOINT) {
+        return Promise.resolve({ ok: true, value: { configured: true } })
+      }
+      return Promise.resolve({ ok: true, value: { models: [], warnings: [] } })
+    })
+    const { ctx, slots } = await bench(call)
+    let entry: { account(): { state: string } } | undefined
+    ctx.provide('providerDirectory', {
+      register: (next: typeof entry) => { entry = next; return () => undefined },
+      update: vi.fn(),
+      invalidateUsage: vi.fn(),
+    } as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    await vi.waitFor(() => {
+      expect(call).toHaveBeenCalledWith('/commandcode', COMMANDCODE_SETTINGS_READ_ENDPOINT, {})
+    })
+    const face = slots.entries('settings.provider.item')[0]?.inject?.() as {
+      storeApiKey(value: string): Promise<void>
+    }
+    await face.storeApiKey('new-key')
+    expect(entry?.account().state).toBe('configured')
+    resolveRead({
+      ok: true,
+      value: {
+        settings: {
+          apiKeyEnv: 'COMMANDCODE_API_KEY',
+          models: [],
+          defaultContextWindow: 1,
+          defaultMaxTokens: 1,
+          requestTimeoutMs: 1,
+          streamIdleTimeoutMs: 1,
+          zeroDataRetention: false,
+          usageEnabled: true,
+        },
+        revision: 1,
+        credential: { configured: false, writable: true },
+      },
+    })
+    await vi.waitFor(() => { expect(entry?.account().state).toBe('configured') })
     await dispose(ctx, fiber)
   })
 })

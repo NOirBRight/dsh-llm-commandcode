@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 
 /** Canonical shared header: delete per-provider fork, re-export built artifact. */
-export { ProviderCardHeader, ProviderQuotaMeter, providerUiCss } from 'dsh-llm-providers-ui/provider-ui';
+export { ProviderCardHeader, ProviderQuotaMeter, providerUiCss, useProviderQuotaCache } from 'dsh-llm-providers-ui/provider-ui';
 export type { ProviderCardHeaderProps, ProviderQuotaMeterProps, ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 
 /** Standard compact usage reset caption. */
@@ -54,4 +54,3 @@ export function UsageSkeleton(props: { rows?: number }): ReactNode {
     </div>
   )
 }
-

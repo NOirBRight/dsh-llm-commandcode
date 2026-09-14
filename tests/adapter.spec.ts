@@ -97,3 +97,13 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
     expect(adapter.imageRequestPricing('commandcode', 'gpt-5.6-luna')).toBeUndefined()
   })
 })
+
+  it('rejects unknown or duplicate thinkingEfforts tokens', () => {
+    expect(() => resolveAdapterOptions({
+      models: [{ id: 'future-model', thinkingEfforts: ['bogus'] }],
+    })).toThrow(/invalid thinkingEfforts token/)
+    expect(() => resolveAdapterOptions({
+      models: [{ id: 'future-model', thinkingEfforts: ['low', 'LOW'] }],
+    })).toThrow(/duplicate thinkingEfforts token/)
+  })
+

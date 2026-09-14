@@ -61,6 +61,14 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(localeNamespace, { en, zh }), 'llm-commandcode: locale')
   const t = ctx.locale.bind(localeNamespace) as CommandCodeCardFace['t']
   const picker = new CommandCodeModelPickerController()
+  const account = { state: 'unknown' as 'connected' | 'configured' | 'unconnected' | 'unknown' }
+  let accountEpoch = 0
+  let closed = false
+  const publishAccount = (state: typeof account.state): void => {
+    if (closed || account.state === state) return
+    account.state = state
+    try { ctx.get('providerDirectory')?.update(COMMANDCODE_SETTINGS_NAMESPACE) } catch { /* providerDirectory is optional in lab */ }
+  }
   let snapshot: SettingsScopeSnapshot<CommandCodeSettingsView> = { status: 'loading', value: undefined, base: undefined, user: undefined, revision: undefined, writable: false, mode: 'memory' }
   const listeners = new Set<() => void>()
   const scope: SettingsScope<CommandCodeSettingsView> = {
@@ -70,22 +78,29 @@ export function apply(ctx: Context): void {
     set: async () => undefined,
     unset: async () => undefined,
   }
-  const updateSnapshot = (next: SettingsScopeSnapshot<CommandCodeSettingsView>): void => { snapshot = next; listeners.forEach(listener => { listener() }) }
+  const updateSnapshot = (next: SettingsScopeSnapshot<CommandCodeSettingsView>): void => {
+    if (closed) return
+    snapshot = next
+    listeners.forEach(listener => { listener() })
+  }
   const { rpc } = ctx.get('connection') as unknown as ConnectionHandle
   const callPlugin = async (endpoint: string, payload: unknown) => rpc.call(COMMANDCODE_RPC_CHANNEL, endpoint, payload)
   const readManagement = async (): Promise<void> => {
+    const epoch = accountEpoch
     const result = await callPlugin(COMMANDCODE_SETTINGS_READ_ENDPOINT, {})
     if (!result.ok) { updateSnapshot({ ...snapshot, status: 'unavailable' }); return }
     const decoded = decodeCommandCodeSettingsReadResult(result.value)
     if (decoded === undefined) { updateSnapshot({ ...snapshot, status: 'unavailable' }); return }
     updateSnapshot({ status: 'ready', value: decoded.settings, base: decoded.settings, user: decoded.settings, revision: decoded.revision, writable: decoded.credential.writable, mode: 'host' })
+    if (epoch === accountEpoch) publishAccount(decoded.credential.configured ? 'configured' : 'unconnected')
   }
-  void readManagement()
   const describeCredential: CommandCodeCardFace['describeCredential'] = async () => {
+    const epoch = accountEpoch
     const result = await callPlugin(COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT, {})
     if (!result.ok) throw new Error(result.error.message)
     const value = result.value as { configured?: unknown; writable?: unknown }
     if (typeof value.configured !== 'boolean' || typeof value.writable !== 'boolean') throw new Error(t('requestFailed'))
+    if (epoch === accountEpoch) publishAccount(value.configured ? 'configured' : 'unconnected')
     return { configured: value.configured, writable: value.writable }
   }
   const storeApiKey: CommandCodeCardFace['storeApiKey'] = async (value) => {
@@ -93,6 +108,11 @@ export function apply(ctx: Context): void {
     if (!result.ok) throw new Error(result.error.message)
     dropPersistedUsageKeys([COMMANDCODE_SETTINGS_NAMESPACE])
     ctx.get('providerDirectory')?.invalidateUsage(COMMANDCODE_SETTINGS_NAMESPACE)
+    const status = result.value as { configured?: unknown }
+    if (typeof status.configured === 'boolean') {
+      accountEpoch += 1
+      publishAccount(status.configured ? 'configured' : 'unconnected')
+    }
   }
   const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async (settings) => {
     const current = scope.getSnapshot()
@@ -158,19 +178,30 @@ export function apply(ctx: Context): void {
   }, CommandCodeSettingsCard))
   ctx.inject(['providerDirectory'], (ctx) => {
     ctx.effect(
-      () => ctx.providerDirectory.register({
-        key: COMMANDCODE_SETTINGS_NAMESPACE,
-        name: 'CommandCode',
-        role: 'llm',
-        header: 'shared',
-        // The card renders the shared detail template; the settings page adds only the breadcrumb.
-        detail: 'shared',
-        usage: createCommandCodeUsageReader(),
-        modelCount: () => scope.getSnapshot().value?.models?.length,
-      }),
+      () => {
+        const declaration = Object.assign({
+          key: COMMANDCODE_SETTINGS_NAMESPACE,
+          name: 'CommandCode',
+          role: 'llm' as const,
+          header: 'shared' as const,
+          detail: 'shared' as const,
+          usage: createCommandCodeUsageReader(),
+          modelCount: () => scope.getSnapshot().value?.models?.length,
+        }, {
+          catalogId: 'commandcode',
+          account: () => ({ state: account.state }),
+        })
+        return ctx.providerDirectory.register(declaration as Parameters<typeof ctx.providerDirectory.register>[0])
+      },
       'dsh-llm-commandcode: provider directory',
     )
   })
+  ctx.effect(() => {
+    void readManagement().catch(() => {
+      updateSnapshot({ ...scope.getSnapshot(), status: 'unavailable' })
+    })
+    return () => { closed = true }
+  }, 'dsh-llm-commandcode: account snapshot')
   ctx.effect(() => {
     let warned = false
     const hasProvidersSection = (): boolean =>
