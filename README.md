@@ -30,9 +30,9 @@ Verified on DeepSeek Harness `0.1.2-alpha.4`, `0.1.2-rc.1`, `0.1.5-rc.1`, and `0
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.30/dsh-llm-commandcode-0.1.30.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.31/dsh-llm-commandcode-0.1.31.tgz
 dsh web
 ~~~
 
@@ -124,18 +124,18 @@ Latest (Owner + this plugin; required together on Web):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.8.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode-0.1.30.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/latest/download/dsh-llm-commandcode-0.1.31.tgz
 ~~~
 
 Fixed versions (reproducible):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.30/dsh-llm-commandcode-0.1.30.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.31/dsh-llm-commandcode-0.1.31.tgz
 ~~~
 
 Update, uninstall, and verify:
@@ -143,9 +143,9 @@ Update, uninstall, and verify:
 ~~~sh
 # Reinstall Owner + this plugin (fixed tags)
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.8.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.30/dsh-llm-commandcode-0.1.30.tgz
+  https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.31/dsh-llm-commandcode-0.1.31.tgz
 # Verify the loaded version
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -155,6 +155,6 @@ dsh plugin --profile web remove dsh-llm-commandcode
 
 Configuration: use the plugin section in Settings for Web UI plugins, or the profile dsh.profile.bundles entry for Host-only plugins. Start with this README's minimal YAML/JSON example and provide credentials/backend addresses explicitly.
 
-Rollback: rerun the fixed v0.1.30 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
+Rollback: rerun the fixed v0.1.31 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.1.30](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.30) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.30/SHA256SUMS).
+Release and integrity: [v0.1.31](https://github.com/NOirBRight/dsh-llm-commandcode/releases/tag/v0.1.31) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-commandcode/releases/download/v0.1.31/SHA256SUMS).
