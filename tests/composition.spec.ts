@@ -56,6 +56,7 @@ async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5
     resolve: async () => apiKey === null ? undefined : { value: apiKey },
   }) as never)
   if (connection !== undefined) ctx.provide('connection', connection as never)
+  ctx.provide('webServer', { register: () => () => {} } as never)
   ctx.baseUrl = pathToFileURL(root).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include

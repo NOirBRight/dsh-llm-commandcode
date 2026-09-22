@@ -91,7 +91,7 @@ export type {
 } from './client-contract.ts'
 
 export const name = 'llm-commandcode'
-export const inject = ['llm']
+export const inject = ['llm', 'webServer']
 
 const NS = COMMANDCODE_SETTINGS_NAMESPACE
 const DEFAULT_RETRY_POLICY: RetryPolicyConfig = { mode: 'normal', maxRetries: 3 }
@@ -313,7 +313,7 @@ export function apply(ctx: Context, config: Config): void {
   })
 
   ctx.effect(() => {
-    const connectionFiber = ctx.inject(['connection'], connectionCtx => {
+    const connectionFiber = ctx.inject(['connection', 'webServer'], connectionCtx => {
       connectionCtx.effect(
         () => connectionCtx.connection.rpc.handle(
       COMMANDCODE_RPC_CHANNEL,

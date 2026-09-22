@@ -60,6 +60,7 @@ async function bench(call = vi.fn(async () => ({ ok: true, value: { models: [], 
     isLoopback: true,
     rpc: { call },
   })
+  ctx.provide('webServer', { register: () => () => {} } as never)
   return { ctx, slots }
 }
 

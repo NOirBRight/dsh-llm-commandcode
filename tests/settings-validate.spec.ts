@@ -39,6 +39,7 @@ async function boot(config: { models: { id: string }[] } = { models: [{ id: 'kep
   ctx.provide('credentials', { resolve: async () => ({ value: 'test-key' }) } as never)
   await ctx.plugin(MemorySettings).await()
   await ctx.plugin(LlmRuntime).await()
+  ctx.provide('webServer', { register: () => () => {} } as never)
   await ctx.plugin(Plugin, config).await()
   return { ctx, settings: ctx.reflect.get('settings') as MemorySettings }
 }
