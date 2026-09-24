@@ -108,10 +108,37 @@ describe('CommandCodeSettingsCard', () => {
     await waitFor(() => expect(storeApiKey).toHaveBeenCalledWith('new-secret'))
     expect(saveConfiguration).toHaveBeenCalledWith({ ...settings, models: [{ ...settings.models[0]!, defaultEffort: 'max' }] }, 1)
   })
+  it('retains the key and advances the form revision when credential storage fails after a settings save', async () => {
+    let latestSnapshot = { status: 'ready' as const, value: settings, base: {}, user: {}, revision: 1, writable: true, mode: 'host' as const }
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView, sourceRevision: number) => {
+      if (sourceRevision !== latestSnapshot.revision) throw new Error('stale revision')
+      latestSnapshot = { ...latestSnapshot, value: next, revision: sourceRevision + 1 }
+      return { settings: next, revision: latestSnapshot.revision }
+    })
+    const storeApiKey = vi.fn()
+      .mockRejectedValueOnce(new Error('credential storage failed'))
+      .mockResolvedValueOnce(undefined)
+    render(<CommandCodeSettingsCard {...props({ saveConfiguration, storeApiKey, useCommandCodeSettings: (selector: (value: typeof latestSnapshot) => unknown) => selector(latestSnapshot) })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
+    const keyInput = screen.getByPlaceholderText('Enter Command Code API key') as HTMLInputElement
+    fireEvent.change(keyInput, { target: { value: 'retry-secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.getByText('credential storage failed')).toBeTruthy())
+    expect(keyInput.value).toBe('retry-secret')
+    expect(latestSnapshot.revision).toBe(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(storeApiKey).toHaveBeenCalledTimes(2))
+    expect(saveConfiguration.mock.calls.map(([, sourceRevision]) => sourceRevision)).toEqual([1, 2])
+    await waitFor(() => expect(keyInput.value).toBe(''))
+  })
+
   it('does not persist a retained draft or key after another tab saves', async () => {
     let latestSnapshot = { status: 'ready' as const, value: settings, base: {}, user: {}, revision: 1, writable: true, mode: 'host' as const }
     const useCommandCodeSettings = (selector: (value: typeof latestSnapshot) => unknown): unknown => selector(latestSnapshot)
+    let releaseFirstSave!: () => void
+    const firstSavePending = new Promise<void>(resolve => { releaseFirstSave = resolve })
     const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView, sourceRevision: number) => {
+      if (next.models[0]?.id === 'retained-draft') await firstSavePending
       if (sourceRevision !== latestSnapshot.revision) throw new Error('stale revision')
       const revision = sourceRevision + 1
       latestSnapshot = { ...latestSnapshot, value: next, revision }
@@ -137,17 +164,17 @@ describe('CommandCodeSettingsCard', () => {
     fireEvent.click(second.getByRole('button', { name: /Expand: Command Code/ }))
     fireEvent.click(second.getByRole('button', { name: 'Model catalog' }))
     fireEvent.change(second.getByLabelText('Model ID 1'), { target: { value: 'other-tab-save' } })
-    fireEvent.click(second.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(saveConfiguration).toHaveBeenCalledTimes(1))
-
-    firstTab.rerender(<CommandCodeSettingsCard {...firstProps} />)
     fireEvent.click(first.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(first.getByText(en.saveFailed)).toBeTruthy())
+    await waitFor(() => expect(saveConfiguration).toHaveBeenCalledTimes(1))
+    fireEvent.click(second.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(latestSnapshot.revision).toBe(2))
+    releaseFirstSave()
+    await waitFor(() => expect(first.getByText('stale revision')).toBeTruthy())
 
     expect((first.getByLabelText('Model ID 1') as HTMLInputElement).value).toBe('retained-draft')
     expect(latestSnapshot.value.models[0]?.id).toBe('other-tab-save')
     expect(storeApiKey).not.toHaveBeenCalled()
-    expect(saveConfiguration).toHaveBeenCalledTimes(1)
+    expect(saveConfiguration).toHaveBeenCalledTimes(2)
   })
 
 

@@ -402,13 +402,12 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const loadUsage = async (): Promise<void> => {
     // The settings page owns quota in the shared detail; the card self-loads only in the legacy layout.
     if (props.mode === 'detail') return
-    if (draft === undefined || snapshot.value?.usageEnabled === false || (!credential?.configured && apiKey.trim().length === 0)) return
+    if (draft === undefined || snapshot.value?.usageEnabled === false || credential?.configured !== true) return
     const epoch = usageEpoch.current + 1
     usageEpoch.current = epoch
     const live = (): boolean => mounted.current && epoch === usageEpoch.current
     setUsage({ status: 'loading' })
     try {
-      if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
       const result = await props.fetchUsage()
       if (!live()) return
       if (result.status === 'unsupported') setUsage({ status: 'unsupported' })
@@ -444,14 +443,15 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
     setBusy(true); setFailure(undefined); setNotice(undefined)
     try {
       if (snapshot.revision !== sourceRevision) throw new Error(t('saveFailed'))
-      if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
       const accepted = await props.saveConfiguration(settingsOf(draft, snapshot.value), sourceRevision)
       const next = draftOf(accepted.settings)
-      setSource(next); setDraft(next); setSourceRevision(accepted.revision); setApiKey(''); setNotice(t('saved')); await refreshCredential(); setUsage({ status: 'idle' })
+      setSource(next); setDraft(next); setSourceRevision(accepted.revision)
+      if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
+      setApiKey(''); setNotice(t('saved')); await refreshCredential(); setUsage({ status: 'idle' })
     } catch (error: unknown) {
       const message = messageOf(error, t('saveFailed'))
       setFailure(message)
-      // Idle would automatically retry storing the rejected key through loadUsage.
+      // A failed credential write leaves the key draft intact for a deliberate retry.
       setUsage(current => current.status === 'loading' ? { status: 'error', message } : current)
     }
     finally { setBusy(false) }
