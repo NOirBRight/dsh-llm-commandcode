@@ -1,23 +1,25 @@
 /** Command Code plugin entry: route registration, settings, discovery, and quota RPC. */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Volatile, VolatileSnapshot } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
+import type { ConnectionRpcHandlerResult } from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import { assertUsableApiKey, INVALID_CREDENTIAL_CODE, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
-import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { allowDshRuntime } from './compatibility.ts'
 import {
-  COMMANDCODE_SETTINGS_READ_ENDPOINT,
   COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
   COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
   COMMANDCODE_DISCOVER_ENDPOINT,
   COMMANDCODE_PROVIDER,
-  COMMANDCODE_RPC_CHANNEL,
-  COMMANDCODE_SAVE_ENDPOINT,
+  COMMANDCODE_RPC_METHOD,
+  COMMANDCODE_VALIDATE_ENDPOINT,
   COMMANDCODE_SETTINGS_NAMESPACE,
   COMMANDCODE_USAGE_ENDPOINT,
   DEFAULT_API_KEY_ENV,
@@ -28,8 +30,7 @@ import {
   PUBLIC_PROVIDER_BASE_URL,
   decodeCommandCodeCredentialSetRequest,
   decodeCommandCodeDiscoveryRequest,
-  decodeCommandCodeSaveRequest,
-  decodeCommandCodeSettings,
+  decodeCommandCodeValidateRequest,
   decodeCommandCodeUsageRequest,
 } from './client-contract.ts'
 import type { CommandCodeSettingsView } from './client-contract.ts'
@@ -43,10 +44,10 @@ import { isPositiveInteger } from './numbers.ts'
 
 export {
   COMMANDCODE_PROVIDER,
-  COMMANDCODE_SETTINGS_READ_ENDPOINT,
   COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
   COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
   COMMANDCODE_RPC_CHANNEL,
+  COMMANDCODE_RPC_METHOD,
   COMMANDCODE_SETTINGS_NAMESPACE,
   DEFAULT_API_KEY_ENV,
   DEFAULT_CONTEXT_WINDOW,
@@ -73,10 +74,8 @@ export {
   decodeCommandCodeDiscoveryRequest,
   decodeCommandCodeDiscoveryResult,
   decodeCommandCodeModel,
-  decodeCommandCodeSaveRequest,
-  decodeCommandCodeSaveResult,
+  decodeCommandCodeValidateRequest,
   decodeCommandCodeSettings,
-  decodeCommandCodeSettingsReadResult,
   decodeCommandCodeUsageReply,
   decodeCommandCodeUsageRequest,
   decodeCommandCodeUsageView,
@@ -84,7 +83,7 @@ export {
 export type {
   CommandCodeDiscoveryRequest,
   CommandCodeDiscoveryResult,
-  CommandCodeSaveRequest,
+  CommandCodeValidateRequest,
   CommandCodeSaveResult,
   CommandCodeUsageReply,
   CommandCodeUsageRequest,
@@ -110,32 +109,66 @@ const catalogModel: z<CommandCodeModelConfig> = z.object({
   thinking: z.boolean(),
   defaultEffort: z.string(),
   thinkingEfforts: z.array(z.string()),
-  inputModalities: z.array(z.union(MODEL_MODALITIES)),
+  inputModalities: z.union([z.array(z.union(MODEL_MODALITIES)), z.never()]),
 })
 
 export interface Config {
-  apiKeyEnv?: string
-  models?: CommandCodeModelConfig[]
-  defaultContextWindow?: number
-  defaultMaxTokens?: number
-  requestTimeoutMs?: number
-  streamIdleTimeoutMs?: number
-  zeroDataRetention?: boolean
-  usageEnabled?: boolean
+  apiKeyEnv: string
+  models: Volatile<CommandCodeModelConfig[] | undefined>
+  defaultContextWindow: Volatile<number>
+  defaultMaxTokens: Volatile<number>
+  requestTimeoutMs: Volatile<number>
+  streamIdleTimeoutMs: Volatile<number>
+  zeroDataRetention: Volatile<boolean>
+  usageEnabled: Volatile<boolean>
   retryPolicy?: RetryPolicyConfig
 }
 
-export const Config: z<Config> = z.object({
+interface ConfigInput {
+  apiKeyEnv?: string | null
+  models?: CommandCodeModelConfig[] | null
+  defaultContextWindow?: number | null
+  defaultMaxTokens?: number | null
+  requestTimeoutMs?: number | null
+  streamIdleTimeoutMs?: number | null
+  zeroDataRetention?: boolean | null
+  usageEnabled?: boolean | null
+  retryPolicy?: RetryPolicyConfig | null
+}
+
+export const Config: z<ConfigInput, Config> = z.object({
   apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
-  models: z.array(catalogModel).default(DEFAULT_MODELS),
-  defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
-  defaultMaxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_TOKENS),
-  requestTimeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_REQUEST_TIMEOUT_MS),
-  streamIdleTimeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
-  zeroDataRetention: z.boolean().default(false),
-  usageEnabled: z.boolean().default(true),
+  models: z.array(catalogModel).default(DEFAULT_MODELS).volatile(),
+  defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW).volatile(),
+  defaultMaxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_TOKENS).volatile(),
+  requestTimeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_REQUEST_TIMEOUT_MS).volatile(),
+  streamIdleTimeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS).volatile(),
+  zeroDataRetention: z.boolean().default(false).volatile(),
+  usageEnabled: z.boolean().default(true).volatile(),
   retryPolicy: RetryPolicySchema,
 })
+
+interface ConfigValues {
+  apiKeyEnv: string | undefined
+  models: VolatileSnapshot<CommandCodeModelConfig[] | undefined>
+  defaultContextWindow: number | undefined
+  defaultMaxTokens: number | undefined
+  requestTimeoutMs: number | undefined
+  streamIdleTimeoutMs: number | undefined
+  zeroDataRetention: boolean | undefined
+  usageEnabled: boolean | undefined
+  retryPolicy: RetryPolicyConfig | undefined
+}
+
+const VOLATILE_CONFIG_FIELDS: Readonly<Record<string, true>> = {
+  models: true,
+  defaultContextWindow: true,
+  defaultMaxTokens: true,
+  requestTimeoutMs: true,
+  streamIdleTimeoutMs: true,
+  zeroDataRetention: true,
+  usageEnabled: true,
+}
 
 
 function normalizeThinkingEfforts(values: readonly string[] | undefined): string[] | undefined {
@@ -150,7 +183,7 @@ function normalizeThinkingEfforts(values: readonly string[] | undefined): string
   return out
 }
 
-function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): CommandCodeModelConfig[] {
+function resolveModels(models: VolatileSnapshot<CommandCodeModelConfig[] | undefined>): CommandCodeModelConfig[] {
   const seen = new Set<string>()
   return [...models ?? DEFAULT_MODELS].map(model => {
     if (model.id.length === 0) throw new Error('llm-commandcode: model ids must be non-empty')
@@ -206,28 +239,6 @@ function resolveModels(models: readonly CommandCodeModelConfig[] | undefined): C
   })
 }
 
-export function resolveAdapterOptions(config: Config): CommandCodeConnectionOptions {
-  const defaultContextWindow = config.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW
-  const defaultMaxTokens = config.defaultMaxTokens ?? DEFAULT_MAX_TOKENS
-  const requestTimeoutMs = config.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
-  const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS
-  if (!isPositiveInteger(defaultContextWindow)) throw new Error('llm-commandcode: defaultContextWindow must be positive')
-  if (!isPositiveInteger(defaultMaxTokens)) throw new Error('llm-commandcode: defaultMaxTokens must be positive')
-  if (!isPositiveInteger(requestTimeoutMs) || requestTimeoutMs > MAX_TIMER_DELAY_MS) throw new Error('llm-commandcode: requestTimeoutMs is invalid')
-  if (!isPositiveInteger(streamIdleTimeoutMs) || streamIdleTimeoutMs > MAX_TIMER_DELAY_MS) throw new Error('llm-commandcode: streamIdleTimeoutMs is invalid')
-  return {
-    apiKeyEnv: credentialRef(config.apiKeyEnv ?? DEFAULT_API_KEY_ENV),
-    providerBaseURL: PUBLIC_PROVIDER_BASE_URL,
-    models: resolveModels(config.models),
-    defaultContextWindow,
-    defaultMaxTokens,
-    requestTimeoutMs,
-    streamIdleTimeoutMs,
-    zeroDataRetention: config.zeroDataRetention ?? false,
-    usageEnabled: config.usageEnabled ?? true,
-    retryPolicy: resolveRetryPolicy(config.retryPolicy ?? DEFAULT_RETRY_POLICY, 'llm-commandcode: retryPolicy'),
-  }
-}
 
 function failure(message: string) {
   return { ok: false as const, error: { code: 'internal' as const, message, details: {} } }
@@ -256,17 +267,87 @@ export function usageFailure(error: unknown) {
   }
 }
 
+function configValues(config: Config): ConfigValues {
+  return {
+    apiKeyEnv: config.apiKeyEnv,
+    models: config.models.get(),
+    defaultContextWindow: config.defaultContextWindow.get(),
+    defaultMaxTokens: config.defaultMaxTokens.get(),
+    requestTimeoutMs: config.requestTimeoutMs.get(),
+    streamIdleTimeoutMs: config.streamIdleTimeoutMs.get(),
+    zeroDataRetention: config.zeroDataRetention.get(),
+    usageEnabled: config.usageEnabled.get(),
+    retryPolicy: config.retryPolicy,
+  }
+}
+
+function decodePluginCall(value: unknown): { endpoint: string; payload: unknown } | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const call = value as Record<string, unknown>
+  const keys = Object.keys(call)
+  if (keys.length < 1 || keys.length > 2 || keys.some(key => key !== 'endpoint' && key !== 'payload') || typeof call.endpoint !== 'string') return undefined
+  return { endpoint: call.endpoint, payload: call.payload }
+}
+
+function pluginResponse(rpcId: string, result: ConnectionRpcHandlerResult): Response {
+  if (!result.ok) return Response.json({ type: 'server-response', rpcId, result })
+  const { attachments, ...success } = result
+  const body = { type: 'server-response', rpcId, result: success }
+  if (attachments === undefined || attachments.length === 0) return Response.json(body)
+
+  const form = new FormData()
+  const attachmentMetadata = attachments.map((attachment, index) => {
+    const part = 'bytes-' + String(index)
+    form.set(part, new Blob([new Uint8Array(attachment.bytes)]))
+    return { path: [...attachment.path], codec: 'bytes', part }
+  })
+  form.set('metadata', JSON.stringify({ ...body, attachments: attachmentMetadata }))
+  return new Response(form)
+}
+
+function badPluginRequest(status: 400 | 415): Response {
+  return new Response(status === 415 ? 'Unsupported Media Type' : 'Bad Request', { status })
+}
+
+const COMMANDCODE_RPC_ROUTE = '/api/' + COMMANDCODE_RPC_METHOD
+
+function resolveAdapterOptionsFromValues(config: ConfigValues): CommandCodeConnectionOptions {
+  const defaultContextWindow = config.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW
+  const defaultMaxTokens = config.defaultMaxTokens ?? DEFAULT_MAX_TOKENS
+  const requestTimeoutMs = config.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+  const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS
+  if (!isPositiveInteger(defaultContextWindow)) throw new Error('llm-commandcode: defaultContextWindow must be positive')
+  if (!isPositiveInteger(defaultMaxTokens)) throw new Error('llm-commandcode: defaultMaxTokens must be positive')
+  if (!isPositiveInteger(requestTimeoutMs) || requestTimeoutMs > MAX_TIMER_DELAY_MS) throw new Error('llm-commandcode: requestTimeoutMs is invalid')
+  if (!isPositiveInteger(streamIdleTimeoutMs) || streamIdleTimeoutMs > MAX_TIMER_DELAY_MS) throw new Error('llm-commandcode: streamIdleTimeoutMs is invalid')
+  return {
+    apiKeyEnv: credentialRef(config.apiKeyEnv ?? DEFAULT_API_KEY_ENV),
+    providerBaseURL: PUBLIC_PROVIDER_BASE_URL,
+    models: resolveModels(config.models),
+    defaultContextWindow,
+    defaultMaxTokens,
+    requestTimeoutMs,
+    streamIdleTimeoutMs,
+    zeroDataRetention: config.zeroDataRetention ?? false,
+    usageEnabled: config.usageEnabled ?? true,
+    retryPolicy: resolveRetryPolicy(config.retryPolicy ?? DEFAULT_RETRY_POLICY, 'llm-commandcode: retryPolicy'),
+  }
+}
+
+export function resolveAdapterOptions(config: Config): CommandCodeConnectionOptions {
+  return resolveAdapterOptionsFromValues(configValues(config))
+}
 export function apply(ctx: Context, config: Config): void {
   if (!allowDshRuntime(ctx.logger, 'dsh-llm-commandcode', ['@deepseek-ai/dsh-llm'])) return
 
-  let current: () => Config = () => config
-  let lastRaw: Config | undefined
+  let currentConfig = configValues(config)
+  let lastRaw: ConfigValues | undefined
   let lastGood: CommandCodeConnectionOptions | undefined
   const options = (): CommandCodeConnectionOptions => {
-    const raw = current()
+    const raw = currentConfig
     if (raw === lastRaw && lastGood !== undefined) return lastGood
     try {
-      const next = resolveAdapterOptions(raw)
+      const next = resolveAdapterOptionsFromValues(raw)
       lastRaw = raw
       lastGood = next
       return next
@@ -308,98 +389,119 @@ export function apply(ctx: Context, config: Config): void {
     registeredPolicy = policy
   }
 
+  ctx.on('loader/volatile-update', paths => {
+    if (!paths.some(([field]) => field !== undefined && VOLATILE_CONFIG_FIELDS[field] === true)) return
+    const next = configValues(config)
+    try {
+      resolveAdapterOptionsFromValues(next)
+    } catch (error: unknown) {
+      ctx.logger.error('llm-commandcode: rejecting invalid live configuration')
+      ctx.logger.error(error)
+      return
+    }
+    currentConfig = next
+    options()
+    ensureRegistration()
+  })
+
   ctx.llm.registerModelDiscovery(NS, async (_request, signal) => {
     return (await discoverModels(signal === undefined ? {} : { signal })).models
   })
 
+  const handleRpc = async (endpoint: string, payload: unknown, signal: AbortSignal, _operator: unknown): Promise<ConnectionRpcHandlerResult> => {
+    if (endpoint === COMMANDCODE_VALIDATE_ENDPOINT) {
+      const request = decodeCommandCodeValidateRequest(payload)
+      if (request === undefined) return failure('invalid Command Code settings request')
+      try {
+        resolveAdapterOptions(Config({
+          ...(currentConfig.apiKeyEnv === undefined ? {} : { apiKeyEnv: currentConfig.apiKeyEnv }),
+          ...request.settings,
+        }))
+        return { ok: true as const, value: {} }
+      } catch (error: unknown) {
+        return failure(error instanceof Error ? error.message : 'Command Code settings are invalid')
+      }
+    }
+    if (endpoint === COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT) {
+      return { ok: true as const, value: await credentialStatus() }
+    }
+    if (endpoint === COMMANDCODE_CREDENTIAL_SET_ENDPOINT) {
+      const request = decodeCommandCodeCredentialSetRequest(payload)
+      if (request === undefined) return failure('invalid Command Code credential request')
+      const credentials = ctx.get('credentials')
+      if (credentials === undefined) return failure('Command Code credentials are unavailable')
+      try {
+        await credentials.set(options().apiKeyEnv, request.apiKey)
+      } catch (error: unknown) {
+        // Do not throw credential-store details through the RPC; return a stable wire failure instead.
+        void error
+        return failure('Command Code credential write failed')
+      }
+      return { ok: true as const, value: await credentialStatus() }
+    }
+    if (endpoint === COMMANDCODE_DISCOVER_ENDPOINT) {
+      const request = decodeCommandCodeDiscoveryRequest(payload)
+      if (request === undefined) return failure('invalid Command Code discovery request')
+      try {
+        const result = await discoverModels({ signal })
+        return { ok: true as const, value: result }
+      } catch (error: unknown) {
+        return failure(error instanceof Error ? error.message : 'Command Code model discovery failed')
+      }
+    }
+    if (endpoint === COMMANDCODE_USAGE_ENDPOINT) {
+      const request = decodeCommandCodeUsageRequest(payload)
+      if (request === undefined) return failure('invalid Command Code usage request')
+      try {
+        if (!options().usageEnabled) return { ok: true as const, value: { status: 'unsupported' as const } }
+        const result = await readCommandCodeUsage({ signal }, storedApiKey)
+        return { ok: true as const, value: result }
+      } catch (error: unknown) {
+        return usageFailure(error)
+      }
+    }
+    return failure('unknown Command Code endpoint: ' + endpoint)
+  }
+
   ctx.effect(() => {
     const connectionFiber = ctx.inject(['connection', 'webServer'], connectionCtx => {
+      const operator = connectionCtx.connection.operator
       connectionCtx.effect(
-        () => connectionCtx.connection.rpc.handle(
-      COMMANDCODE_RPC_CHANNEL,
-      async (endpoint, payload, signal) => {
-        if (endpoint === COMMANDCODE_SETTINGS_READ_ENDPOINT) {
-          const descriptor = ctx.get('settings')?.describe().find(item => item.ns === NS)
-          const settings = decodeCommandCodeSettings(descriptor?.value)
-          if (descriptor === undefined || settings === undefined) return failure('Command Code settings are unavailable')
-          return { ok: true as const, value: { settings, revision: descriptor.revision, credential: await credentialStatus() } }
-        }
-        if (endpoint === COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT) {
-          return { ok: true as const, value: await credentialStatus() }
-        }
-        if (endpoint === COMMANDCODE_CREDENTIAL_SET_ENDPOINT) {
-          const request = decodeCommandCodeCredentialSetRequest(payload)
-          if (request === undefined) return failure('invalid Command Code credential request')
-          const credentials = ctx.get('credentials')
-          if (credentials === undefined) return failure('Command Code credentials are unavailable')
-          try {
-            await credentials.set(options().apiKeyEnv, request.apiKey)
-          } catch (error: unknown) {
-            // Do not throw credential-store details through the RPC; return a stable wire failure instead.
-            void error
-            return failure('Command Code credential write failed')
-          }
-          return { ok: true as const, value: await credentialStatus() }
-        }
-        if (endpoint === COMMANDCODE_DISCOVER_ENDPOINT) {
-          const request = decodeCommandCodeDiscoveryRequest(payload)
-          if (request === undefined) return failure('invalid Command Code discovery request')
-          try {
-            const result = await discoverModels({ signal })
-            return { ok: true as const, value: result }
-          } catch (error: unknown) {
-            return failure(error instanceof Error ? error.message : 'Command Code model discovery failed')
-          }
-        }
-        if (endpoint === COMMANDCODE_USAGE_ENDPOINT) {
-          const request = decodeCommandCodeUsageRequest(payload)
-          if (request === undefined) return failure('invalid Command Code usage request')
-          try {
-            if (!options().usageEnabled) return { ok: true as const, value: { status: 'unsupported' as const } }
-            const result = await readCommandCodeUsage({ signal }, storedApiKey)
-            return { ok: true as const, value: result }
-          } catch (error: unknown) {
-            return usageFailure(error)
-          }
-        }
-        if (endpoint === COMMANDCODE_SAVE_ENDPOINT) {
-          const request = decodeCommandCodeSaveRequest(payload)
-          if (request === undefined) return failure('invalid Command Code settings request')
-          const settings = ctx.get('settings')
-          if (settings === undefined) return failure('Command Code settings are unavailable')
-          try {
-            const before = settings.describe().find(descriptor => descriptor.ns === NS)
-            if (before === undefined) return failure('Command Code settings are unavailable')
-            const currentSettings = decodeCommandCodeSettings(before.value)
-            if (currentSettings === undefined) return failure('Command Code settings are invalid')
-            const next = { ...currentSettings, ...request.settings, apiKeyEnv: currentSettings.apiKeyEnv }
-            const ops: SettingsPathOp[] = []
-            for (const field of ['models', 'defaultContextWindow', 'defaultMaxTokens', 'requestTimeoutMs', 'streamIdleTimeoutMs', 'zeroDataRetention', 'usageEnabled'] as const) {
-              if (!deepEqualJson(currentSettings[field], next[field])) ops.push({ op: 'set', path: [field], value: next[field] })
+        () => connectionCtx.connection.fetch.register({
+          path: COMMANDCODE_RPC_ROUTE,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: async request => {
+            const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
+            if (mediaType !== 'application/json') return badPluginRequest(415)
+            let body: unknown
+            try {
+              body = await request.json()
+            } catch {
+              return badPluginRequest(400)
             }
-            if (ops.length > 0) await settings.mutate(NS, ops, request.expectedRevision)
-            const accepted = settings.describe().find(descriptor => descriptor.ns === NS)
-            const acceptedSettings = decodeCommandCodeSettings(accepted?.value)
-            if (accepted === undefined || acceptedSettings === undefined) return failure('Command Code settings could not be reloaded')
-            return { ok: true as const, value: { settings: acceptedSettings, revision: accepted.revision } }
-          } catch (error: unknown) {
-            return failure(error instanceof Error ? error.message : 'Command Code settings save failed')
-          }
-        }
-        return failure('unknown Command Code endpoint: ' + endpoint)
-      },
-        ),
-        'llm-commandcode: authenticated Connection RPC',
+            const parsed = clientRequestSchema.safeParse(body)
+            if (!parsed.success || parsed.data.method !== COMMANDCODE_RPC_METHOD) return badPluginRequest(400)
+            const call = decodePluginCall(parsed.data.payload)
+            if (call === undefined) return badPluginRequest(400)
+            try {
+              const result = await handleRpc(call.endpoint, call.payload, request.signal, operator)
+              return pluginResponse(parsed.data.rpcId, result)
+            } catch {
+              return new Response('Internal Server Error', { status: 500 })
+            }
+          },
+        }),
+        'llm-commandcode: authenticated Connection Fetch route',
       )
     })
     return connectionFiber.dispose
   }, 'llm-commandcode: Connection injection')
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, NS, Config, config, {
-      setSource: source => { current = source },
-      onChange: ensureRegistration,
-      validate: value => { resolveAdapterOptions(value) },
-    })
+  ctx.inject(['settings'], settingsCtx => {
+    settingsCtx.effect(
+      () => settingsCtx.settings.configure({ auto: false }, ctx.fiber),
+      'llm-commandcode: settings presentation',
+    )
   })
 }
 

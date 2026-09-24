@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { Config, resolveAdapterOptions } from '../src/index.ts'
 import { CommandCodeAdapter, httpErrorCode } from '../src/adapter.ts'
-import { resolveAdapterOptions } from '../src/index.ts'
 import { createCommandCodePiAiProfile } from '../src/pi-ai-profile.ts'
 
 function options() {
-  return resolveAdapterOptions({
+  return resolveAdapterOptions(Config({
     apiKeyEnv: 'COMMANDCODE_API_KEY',
     zeroDataRetention: true,
     models: [
@@ -16,7 +16,7 @@ function options() {
         defaultEffort: 'xhigh',
       },
     ],
-  })
+  }))
 }
 
 describe('CommandCodeAdapter via PiAiAdapter', () => {
@@ -59,14 +59,15 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
   })
 
   it('projects official modalities and new-model effort metadata', () => {
-    const connection = resolveAdapterOptions({
+    const connection = resolveAdapterOptions(Config({
       apiKeyEnv: 'COMMANDCODE_API_KEY',
       models: [
         { id: 'Qwen/Qwen3.8-Max-0902', contextWindow: 1_000_000 },
         { id: 'meta/muse-spark-1.3-contributor', contextWindow: 1_048_576 },
         { id: 'meituan/LongCat-2.0:free', contextWindow: 1_048_576, thinking: true },
       ],
-    })
+    }))
+    expect(connection.models.find(model => model.id === 'Qwen/Qwen3.8-Max-0902')?.inputModalities).toEqual(['text', 'image'])
     const models = createCommandCodePiAiProfile(connection).piProvider.getModels()
     expect(models.find(model => model.id === 'Qwen/Qwen3.8-Max-0902')).toMatchObject({
       input: ['text', 'image'],
@@ -80,8 +81,8 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
   })
 
   it('has no configurable provider endpoint surface', () => {
-    const legacy = { providerBaseURL: 'https://evil.example/provider/v1' } as unknown as Parameters<typeof resolveAdapterOptions>[0]
-    expect(resolveAdapterOptions(legacy).providerBaseURL).toBe('https://api.commandcode.ai/provider/v1')
+    const options = resolveAdapterOptions(Config({ apiKeyEnv: 'COMMANDCODE_API_KEY' }))
+    expect(options.providerBaseURL).toBe('https://api.commandcode.ai/provider/v1')
   })
 
   it('retains provider-specific error classification helpers', () => {
@@ -99,11 +100,11 @@ describe('CommandCodeAdapter via PiAiAdapter', () => {
 })
 
   it('rejects unknown or duplicate thinkingEfforts tokens', () => {
-    expect(() => resolveAdapterOptions({
+    expect(() => resolveAdapterOptions(Config({
       models: [{ id: 'future-model', thinkingEfforts: ['bogus'] }],
-    })).toThrow(/invalid thinkingEfforts token/)
-    expect(() => resolveAdapterOptions({
+    }))).toThrow(/invalid thinkingEfforts token/)
+    expect(() => resolveAdapterOptions(Config({
       models: [{ id: 'future-model', thinkingEfforts: ['low', 'LOW'] }],
-    })).toThrow(/duplicate thinkingEfforts token/)
+    }))).toThrow(/duplicate thinkingEfforts token/)
   })
 

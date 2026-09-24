@@ -24,17 +24,16 @@ export const DEFAULT_CONTEXT_WINDOW = 1_000_000
 export const DEFAULT_MAX_TOKENS = 32_768
 export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
-export const COMMANDCODE_RPC_CHANNEL = '/commandcode'
-export const COMMANDCODE_SETTINGS_READ_ENDPOINT = 'settings/read'
+export const COMMANDCODE_RPC_CHANNEL = '/api'
+export const COMMANDCODE_RPC_METHOD = 'plugin-rpc/commandcode'
 export const COMMANDCODE_DISCOVER_ENDPOINT = 'models/discover'
-export const COMMANDCODE_SAVE_ENDPOINT = 'settings/save'
+export const COMMANDCODE_VALIDATE_ENDPOINT = 'settings/validate'
 export const COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT = 'credentials/status'
 export const COMMANDCODE_CREDENTIAL_SET_ENDPOINT = 'credentials/set'
 export const COMMANDCODE_USAGE_ENDPOINT = 'usage/read'
 
-/** Settings section mirrored to the browser without a secret. */
+/** Volatile configuration fields surfaced to the browser settings card. */
 export interface CommandCodeSettingsView {
-  apiKeyEnv: string
   models: CommandCodeModelConfig[]
   defaultContextWindow: number
   defaultMaxTokens: number
@@ -54,9 +53,8 @@ export interface CommandCodeDiscoveryResult {
   warnings: string[]
 }
 
-export interface CommandCodeSaveRequest {
-  settings: Omit<CommandCodeSettingsView, 'apiKeyEnv'>
-  expectedRevision: number
+export interface CommandCodeValidateRequest {
+  settings: CommandCodeSettingsView
 }
 
 export interface CommandCodeSaveResult {
@@ -64,9 +62,6 @@ export interface CommandCodeSaveResult {
   revision: number
 }
 
-export interface CommandCodeSettingsReadResult extends CommandCodeSaveResult {
-  credential: { configured: boolean; writable: boolean }
-}
 
 export interface CommandCodeCredentialSetRequest { apiKey: string }
 
@@ -78,6 +73,7 @@ export interface CommandCodeUsageReply {
   status: 'ok' | 'unsupported'
   usage?: CommandCodeUsageView
 }
+
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -147,7 +143,6 @@ export function decodeCommandCodeModel(value: unknown): CommandCodeModelConfig |
 export function decodeCommandCodeSettings(value: unknown): CommandCodeSettingsView | undefined {
   if (!record(value) || hasTokenFields(value)) return undefined
   const modelsValue = value.models
-  if (typeof value.apiKeyEnv !== 'string' || value.apiKeyEnv.length === 0) return undefined
   if (!Array.isArray(modelsValue)) return undefined
   if (!isPositiveInteger(value.defaultContextWindow) || !isPositiveInteger(value.defaultMaxTokens)) return undefined
   if (!isPositiveInteger(value.requestTimeoutMs) || !isPositiveInteger(value.streamIdleTimeoutMs)) return undefined
@@ -161,7 +156,6 @@ export function decodeCommandCodeSettings(value: unknown): CommandCodeSettingsVi
     models.push(model)
   }
   return {
-    apiKeyEnv: value.apiKeyEnv,
     models,
     defaultContextWindow: value.defaultContextWindow,
     defaultMaxTokens: value.defaultMaxTokens,
@@ -189,24 +183,10 @@ export function decodeCommandCodeDiscoveryResult(value: unknown): CommandCodeDis
   return { models, warnings: [...value.warnings] }
 }
 
-export function decodeCommandCodeSaveRequest(value: unknown): CommandCodeSaveRequest | undefined {
-  if (!record(value) || hasTokenFields(value)) return undefined
-  const expectedRevision = value.expectedRevision
-  if (typeof expectedRevision !== 'number' || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) return undefined
-  const settings = value.settings
-  if (!record(settings)) return undefined
-  const decoded = decodeCommandCodeSettings({ apiKeyEnv: DEFAULT_API_KEY_ENV, ...settings })
-  if (decoded === undefined) return undefined
-  const { apiKeyEnv: _apiKeyEnv, ...withoutKey } = decoded
-  return { settings: withoutKey, expectedRevision: expectedRevision as number }
-}
-
-export function decodeCommandCodeSaveResult(value: unknown): CommandCodeSaveResult | undefined {
-  if (!record(value) || hasTokenFields(value)) return undefined
-  const revision = value.revision
-  if (!Number.isSafeInteger(revision) || (revision as number) < 0) return undefined
+export function decodeCommandCodeValidateRequest(value: unknown): CommandCodeValidateRequest | undefined {
+  if (!record(value) || hasTokenFields(value) || Object.keys(value).some(key => key !== 'settings')) return undefined
   const settings = decodeCommandCodeSettings(value.settings)
-  return settings === undefined ? undefined : { settings, revision: revision as number }
+  return settings === undefined ? undefined : { settings }
 }
 
 function decodeUsageWindow(value: unknown): CommandCodeUsageWindow | undefined {
@@ -225,14 +205,6 @@ function positiveOrZero(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
-/** Decode the secret-free usage snapshot returned by the Host. */
-
-export function decodeCommandCodeSettingsReadResult(value: unknown): CommandCodeSettingsReadResult | undefined {
-  if (!record(value) || hasTokenFields(value) || !record(value.credential)) return undefined
-  const base = decodeCommandCodeSaveResult(value)
-  if (base === undefined || typeof value.credential.configured !== 'boolean' || typeof value.credential.writable !== 'boolean') return undefined
-  return { ...base, credential: { configured: value.credential.configured, writable: value.credential.writable } }
-}
 
 export function decodeCommandCodeCredentialSetRequest(value: unknown): CommandCodeCredentialSetRequest | undefined {
   if (!record(value) || Object.keys(value).some(key => key !== 'apiKey') || typeof value.apiKey !== 'string' || value.apiKey.trim().length === 0) return undefined

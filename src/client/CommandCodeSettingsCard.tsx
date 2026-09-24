@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   CommandCodeDiscoveryRequest,
@@ -37,7 +37,7 @@ export interface CommandCodeCredentialState {
 
 export interface CommandCodeCardFace {
   t: (key: CommandCodeSettingsKey) => string
-  hooks: { commandCodeSettings: SettingsScope<CommandCodeSettingsView> }
+  hooks: { commandCodeSettings: ConfigForm<CommandCodeSettingsView> }
   describeCredential: () => Promise<CommandCodeCredentialState>
   storeApiKey: (apiKey: string) => Promise<void>
   saveConfiguration: (settings: CommandCodeSettingsView) => Promise<CommandCodeSaveResult>
@@ -336,7 +336,7 @@ function headlineQuotaOf(view: CommandCodeUsageView | undefined, t: CommandCodeS
 /** Standard collapsible provider card. */
 export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): ReactNode {
   const { t } = props
-  const snapshot = props.useCommandCodeSettings((value: SettingsScopeSnapshot<CommandCodeSettingsView>) => value)
+  const snapshot = props.useCommandCodeSettings((value: ConfigFormSnapshot<CommandCodeSettingsView>) => value)
   const initial = useMemo(() => snapshot.value === undefined ? undefined : draftOf(snapshot.value), [snapshot.value])
   const [open, setOpen] = useState(false)
   const [source, setSource] = useState<Draft | undefined>(initial)
@@ -382,7 +382,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
       setCredential(undefined)
     }
   }
-  useEffect(() => { if (snapshot.status === 'ready') void refreshCredential() }, [snapshot.status, snapshot.value?.apiKeyEnv])
+  useEffect(() => { if (snapshot.status === 'ready') void refreshCredential() }, [snapshot.status, snapshot.revision])
   useEffect(() => {
     mounted.current = true
     return () => {

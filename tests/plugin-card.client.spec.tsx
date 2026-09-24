@@ -11,7 +11,6 @@ import { ModelCatalogFields, catalogStyles } from '../src/client/model-catalog-u
 afterEach(() => cleanup())
 
 const settings: CommandCodeSettingsView = {
-  apiKeyEnv: 'COMMANDCODE_API_KEY',
   models: [{ id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', contextWindow: 1_050_000 }],
   defaultContextWindow: 1_000_000,
   defaultMaxTokens: 32768,

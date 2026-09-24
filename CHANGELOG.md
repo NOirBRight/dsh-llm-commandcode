@@ -1,3 +1,7 @@
+## Unreleased
+
+- Complete the official DSH `0.1.7-alpha.2` ConfigForm cutover: read account state from the credential RPC, validate edited settings on the authenticated Host route, and save only changed fields through revision-fenced Loader ConfigForm. Serializable model defaults keep the settings detail usable without an API key.
+
 ## v0.1.31
 
 ## 0.1.32

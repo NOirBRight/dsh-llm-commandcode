@@ -2,8 +2,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
-import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -12,19 +12,17 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import {
   COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
   COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
-  COMMANDCODE_SETTINGS_READ_ENDPOINT,
   COMMANDCODE_DISCOVER_ENDPOINT,
   COMMANDCODE_RPC_CHANNEL,
-  COMMANDCODE_SAVE_ENDPOINT,
+  COMMANDCODE_RPC_METHOD,
+  COMMANDCODE_VALIDATE_ENDPOINT,
   COMMANDCODE_SETTINGS_NAMESPACE,
   COMMANDCODE_USAGE_ENDPOINT,
   decodeCommandCodeDiscoveryResult,
-  decodeCommandCodeSaveResult,
-  decodeCommandCodeSettingsReadResult,
+  decodeCommandCodeSettings,
   decodeCommandCodeUsageReply,
 } from '../client-contract.ts'
 import type {
-  CommandCodeDiscoveryRequest,
   CommandCodeSettingsView,
 } from '../client-contract.ts'
 import type { CommandCodeUsageRead } from '../types.ts'
@@ -45,7 +43,7 @@ import { CommandCodeSettingsCard } from './CommandCodeSettingsCard.tsx'
 import type { CommandCodeCardFace } from './CommandCodeSettingsCard.tsx'
 import { en, zh } from './locales.ts'
 export const name = 'dsh-llm-commandcode-client'
-export const inject = ['slots', 'locale', 'connection']
+export const inject = ['slots', 'locale', 'connection', 'configForms']
 
 /**
  * Grace window before the missing-owner warning fires: the LLM Providers owner registers its
@@ -69,31 +67,11 @@ export function apply(ctx: Context): void {
     account.state = state
     try { ctx.get('providerDirectory')?.update(COMMANDCODE_SETTINGS_NAMESPACE) } catch { /* providerDirectory is optional in lab */ }
   }
-  let snapshot: SettingsScopeSnapshot<CommandCodeSettingsView> = { status: 'loading', value: undefined, base: undefined, user: undefined, revision: undefined, writable: false, mode: 'memory' }
-  const listeners = new Set<() => void>()
-  const scope: SettingsScope<CommandCodeSettingsView> = {
-    getSnapshot: () => snapshot,
-    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener) } },
-    mutate: async () => undefined,
-    set: async () => undefined,
-    unset: async () => undefined,
-  }
-  const updateSnapshot = (next: SettingsScopeSnapshot<CommandCodeSettingsView>): void => {
-    if (closed) return
-    snapshot = next
-    listeners.forEach(listener => { listener() })
-  }
+  const form = ctx.configForms.get<CommandCodeSettingsView>(COMMANDCODE_SETTINGS_NAMESPACE)
   const { rpc } = ctx.get('connection') as unknown as ConnectionHandle
-  const callPlugin = async (endpoint: string, payload: unknown) => rpc.call(COMMANDCODE_RPC_CHANNEL, endpoint, payload)
-  const readManagement = async (): Promise<void> => {
-    const epoch = accountEpoch
-    const result = await callPlugin(COMMANDCODE_SETTINGS_READ_ENDPOINT, {})
-    if (!result.ok) { updateSnapshot({ ...snapshot, status: 'unavailable' }); return }
-    const decoded = decodeCommandCodeSettingsReadResult(result.value)
-    if (decoded === undefined) { updateSnapshot({ ...snapshot, status: 'unavailable' }); return }
-    updateSnapshot({ status: 'ready', value: decoded.settings, base: decoded.settings, user: decoded.settings, revision: decoded.revision, writable: decoded.credential.writable, mode: 'host' })
-    if (epoch === accountEpoch) publishAccount(decoded.credential.configured ? 'configured' : 'unconnected')
-  }
+  const callPlugin = (endpoint: string, payload: unknown, signal?: AbortSignal) =>
+    rpc.call(COMMANDCODE_RPC_CHANNEL, COMMANDCODE_RPC_METHOD, { endpoint, payload }, signal)
+  const commandCodeUsageReader = createCommandCodeUsageReader()
   const describeCredential: CommandCodeCardFace['describeCredential'] = async () => {
     const epoch = accountEpoch
     const result = await callPlugin(COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT, {})
@@ -103,7 +81,7 @@ export function apply(ctx: Context): void {
     if (epoch === accountEpoch) publishAccount(value.configured ? 'configured' : 'unconnected')
     return { configured: value.configured, writable: value.writable }
   }
-  const storeApiKey: CommandCodeCardFace['storeApiKey'] = async (value) => {
+  const storeApiKey: CommandCodeCardFace['storeApiKey'] = async value => {
     const result = await callPlugin(COMMANDCODE_CREDENTIAL_SET_ENDPOINT, { apiKey: value })
     if (!result.ok) throw new Error(result.error.message)
     dropPersistedUsageKeys([COMMANDCODE_SETTINGS_NAMESPACE])
@@ -114,19 +92,28 @@ export function apply(ctx: Context): void {
       publishAccount(status.configured ? 'configured' : 'unconnected')
     }
   }
-  const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async (settings) => {
-    const current = scope.getSnapshot()
-    if (current.revision === undefined) throw new Error(t('saveFailed'))
-    const { apiKeyEnv: _apiKeyEnv, ...withoutKey } = settings
-    const result = await callPlugin(COMMANDCODE_SAVE_ENDPOINT, { settings: withoutKey, expectedRevision: current.revision })
+  const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async settings => {
+    const current = form.getSnapshot()
+    if (current.status !== 'ready' || current.value === undefined || current.revision === undefined || !current.writable) throw new Error(t('saveFailed'))
+    const before = decodeCommandCodeSettings(current.value)
+    if (before === undefined) throw new Error(t('saveFailed'))
+    const ops: SettingsPathOpView[] = []
+    for (const field of ['models', 'defaultContextWindow', 'defaultMaxTokens', 'requestTimeoutMs', 'streamIdleTimeoutMs', 'zeroDataRetention', 'usageEnabled'] as const) {
+      if (field === 'models' ? JSON.stringify(before.models) === JSON.stringify(settings.models) : before[field] === settings[field]) continue
+      ops.push({ op: 'set', path: [field], value: field === 'models' ? JSON.parse(JSON.stringify(settings.models)) as JsonValue : settings[field] })
+    }
+    if (ops.length === 0) return { settings: before, revision: current.revision }
+    const result = await callPlugin(COMMANDCODE_VALIDATE_ENDPOINT, { settings })
     if (!result.ok) throw new Error(result.error.message)
-    const saved = decodeCommandCodeSaveResult(result.value)
-    if (saved === undefined) throw new Error(t('saveFailed'))
-    updateSnapshot({ ...snapshot, status: 'ready', value: saved.settings, base: saved.settings, user: saved.settings, revision: saved.revision, writable: snapshot.writable, mode: 'host' })
-    return saved
+    const accepted = await form.mutate(ops, current.revision)
+    if (!accepted) throw new Error(t('saveFailed'))
+    const saved = form.getSnapshot()
+    const value = decodeCommandCodeSettings(saved.value)
+    if (value === undefined || saved.revision === undefined) throw new Error(t('saveFailed'))
+    return { settings: value, revision: saved.revision }
   }
-  const discover: CommandCodeCardFace['discoverModels'] = async (request: CommandCodeDiscoveryRequest) => {
-    const result = await callPlugin(COMMANDCODE_DISCOVER_ENDPOINT, request)
+  const discover: CommandCodeCardFace['discoverModels'] = async request => {
+    const result = await callPlugin(COMMANDCODE_DISCOVER_ENDPOINT, {}, request.signal)
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCommandCodeDiscoveryResult(result.value)
     if (decoded === undefined) throw new Error(t('discoveryEmpty'))
@@ -164,7 +151,7 @@ export function apply(ctx: Context): void {
     locale: localeNamespace,
     inject: (): CommandCodeCardFace => ({
       t,
-      hooks: { commandCodeSettings: scope },
+      hooks: { commandCodeSettings: form },
       describeCredential,
       storeApiKey,
       saveConfiguration,
@@ -176,8 +163,8 @@ export function apply(ctx: Context): void {
       closeModelPicker: picker.close,
     }),
   }, CommandCodeSettingsCard))
-  ctx.inject(['providerDirectory'], (ctx) => {
-    ctx.effect(
+  ctx.inject(['providerDirectory'], providerCtx => {
+    providerCtx.effect(
       () => {
         const declaration = Object.assign({
           key: COMMANDCODE_SETTINGS_NAMESPACE,
@@ -185,21 +172,19 @@ export function apply(ctx: Context): void {
           role: 'llm' as const,
           header: 'shared' as const,
           detail: 'shared' as const,
-          usage: createCommandCodeUsageReader(),
-          modelCount: () => scope.getSnapshot().value?.models?.length,
+          usage: commandCodeUsageReader,
+          modelCount: () => form.getSnapshot().value?.models?.length,
         }, {
           catalogId: 'commandcode',
           account: () => ({ state: account.state }),
         })
-        return ctx.providerDirectory.register(declaration as Parameters<typeof ctx.providerDirectory.register>[0])
+        return providerCtx.providerDirectory.register(declaration as Parameters<typeof providerCtx.providerDirectory.register>[0])
       },
       'dsh-llm-commandcode: provider directory',
     )
   })
   ctx.effect(() => {
-    void readManagement().catch(() => {
-      updateSnapshot({ ...scope.getSnapshot(), status: 'unavailable' })
-    })
+    void describeCredential().catch(() => { publishAccount('unknown') })
     return () => { closed = true }
   }, 'dsh-llm-commandcode: account snapshot')
   ctx.effect(() => {
@@ -225,7 +210,6 @@ export function apply(ctx: Context): void {
       stop()
     }
   }, 'dsh-llm-providers-ui: missing owner diagnostic')
-
 }
 
 export type { CommandCodeSettingsKey }

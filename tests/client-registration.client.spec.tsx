@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
 import {
   COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
-  COMMANDCODE_SETTINGS_READ_ENDPOINT,
+  COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
+  COMMANDCODE_RPC_METHOD,
 } from '../src/client-contract.ts'
 import { clearProviderUsageCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 
@@ -60,6 +61,31 @@ async function bench(call = vi.fn(async () => ({ ok: true, value: { models: [], 
     isLoopback: true,
     rpc: { call },
   })
+  ctx.provide('configForms', {
+    get: () => ({
+      getSnapshot: () => ({
+        status: 'ready' as const,
+        value: {
+          models: [],
+          defaultContextWindow: 1_000_000,
+          defaultMaxTokens: 32_768,
+          requestTimeoutMs: 60_000,
+          streamIdleTimeoutMs: 300_000,
+          zeroDataRetention: false,
+          usageEnabled: true,
+        },
+        base: {},
+        user: {},
+        revision: 1,
+        writable: true,
+        mode: 'host' as const,
+      }),
+      subscribe: () => () => undefined,
+      mutate: async () => true,
+      set: async () => true,
+      unset: async () => true,
+    }),
+  } as never)
   ctx.provide('webServer', { register: () => () => {} } as never)
   return { ctx, slots }
 }
@@ -70,8 +96,8 @@ async function dispose(ctx: Context, fiber: { dispose(): Promise<void> }): Promi
 }
 
 describe('CommandCode client registration', () => {
-  it('declares its three client services', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection'])
+  it('declares all client services', () => {
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'configForms'])
   })
 
   it('registers only its keyed provider card and disposes every contribution', async () => {
@@ -183,12 +209,30 @@ describe('CommandCode client registration', () => {
     await dispose(ctx, fiber)
   })
 
-  it('keeps a saved account when an older management read finishes later', async () => {
+  it('shows an unconnected account without a legacy settings namespace', async () => {
+    const call = vi.fn(async (_channel: string, _method: string, request: { endpoint?: string }) =>
+      request.endpoint === COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT
+        ? { ok: true, value: { configured: false, writable: true } }
+        : { ok: false, error: { message: 'Command Code settings are unavailable' } })
+    const { ctx } = await bench(call)
+    let entry: { account(): { state: string } } | undefined
+    ctx.provide('providerDirectory', {
+      register: (next: typeof entry) => { entry = next; return () => undefined },
+      update: vi.fn(),
+      invalidateUsage: vi.fn(),
+    } as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    await vi.waitFor(() => { expect(entry?.account().state).toBe('unconnected') })
+    await dispose(ctx, fiber)
+  })
+
+  it('keeps a saved account when an older credential read finishes later', async () => {
     let resolveRead: (value: unknown) => void
     const olderRead = new Promise<unknown>(resolve => { resolveRead = resolve })
-    const call = vi.fn((_channel: string, endpoint: string) => {
-      if (endpoint === COMMANDCODE_SETTINGS_READ_ENDPOINT) return olderRead
-      if (endpoint === COMMANDCODE_CREDENTIAL_SET_ENDPOINT) {
+    const call = vi.fn((_channel: string, _method: string, request: { endpoint?: string }) => {
+      if (request.endpoint === COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT) return olderRead
+      if (request.endpoint === COMMANDCODE_CREDENTIAL_SET_ENDPOINT) {
         return Promise.resolve({ ok: true, value: { configured: true } })
       }
       return Promise.resolve({ ok: true, value: { models: [], warnings: [] } })
@@ -203,30 +247,14 @@ describe('CommandCode client registration', () => {
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     await vi.waitFor(() => {
-      expect(call).toHaveBeenCalledWith('/commandcode', COMMANDCODE_SETTINGS_READ_ENDPOINT, {})
+      expect(call).toHaveBeenCalledWith('/api', COMMANDCODE_RPC_METHOD, { endpoint: COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT, payload: {} }, undefined)
     })
     const face = slots.entries('settings.provider.item')[0]?.inject?.() as {
       storeApiKey(value: string): Promise<void>
     }
     await face.storeApiKey('new-key')
     expect(entry?.account().state).toBe('configured')
-    resolveRead({
-      ok: true,
-      value: {
-        settings: {
-          apiKeyEnv: 'COMMANDCODE_API_KEY',
-          models: [],
-          defaultContextWindow: 1,
-          defaultMaxTokens: 1,
-          requestTimeoutMs: 1,
-          streamIdleTimeoutMs: 1,
-          zeroDataRetention: false,
-          usageEnabled: true,
-        },
-        revision: 1,
-        credential: { configured: false, writable: true },
-      },
-    })
+    resolveRead({ ok: true, value: { configured: false, writable: true } })
     await vi.waitFor(() => { expect(entry?.account().state).toBe('configured') })
     await dispose(ctx, fiber)
   })

@@ -8,7 +8,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import * as CommandCode from '../src/index.ts'
-import { COMMANDCODE_RPC_CHANNEL, COMMANDCODE_USAGE_ENDPOINT } from '../src/client-contract.ts'
+import { COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT, COMMANDCODE_RPC_CHANNEL, COMMANDCODE_RPC_METHOD, COMMANDCODE_USAGE_ENDPOINT } from '../src/client-contract.ts'
 import { assemble } from './assemble.ts'
 import { anthropicTextEvents, closeMockServers, mockServer, openAITextEvents } from './mock-server.ts'
 
@@ -77,18 +77,32 @@ async function load(model: { id: string; defaultEffort?: string } = { id: 'gpt-5
 type CapturedRpc = (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<{ ok: true, value: unknown } | { ok: false, error: { code: string, message: string } }>
 
 async function usageHandler(apiKey: string | null, credentials?: unknown): Promise<CapturedRpc> {
-  const captured: CapturedRpc[] = []
+  const captured: Array<(request: Request) => Promise<Response>> = []
   await load({ id: 'gpt-5.6-luna' }, apiKey, {
-    rpc: {
-      handle: (_channel: string, handler: unknown) => {
-        captured.push(handler as CapturedRpc)
+    fetch: {
+      register: (route: { fetch: (request: Request) => Promise<Response> }) => {
+        captured.push(route.fetch)
         return async () => undefined
       },
     },
   }, credentials)
-  const handler = captured[0]
-  if (handler === undefined) throw new Error('Command Code did not register its Connection RPC handler')
-  return handler
+  const fetch = captured[0]
+  if (fetch === undefined) throw new Error('Command Code did not register its authenticated Fetch route')
+  return async (endpoint, payload, signal) => {
+    const response = await fetch(new Request('http://localhost' + COMMANDCODE_RPC_CHANNEL + '/' + COMMANDCODE_RPC_METHOD, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId: 'test-rpc-id',
+        method: COMMANDCODE_RPC_METHOD,
+        payload: { endpoint, payload },
+      }),
+      signal,
+    }))
+    const body = await response.json() as { result: Awaited<ReturnType<CapturedRpc>> }
+    return body.result
+  }
 }
 
 describe('CommandCode composition', () => {
@@ -152,13 +166,45 @@ describe('CommandCode composition', () => {
     expect(options.models[0]?.defaultEffort).toBeUndefined()
   })
 
-  it('registers the management RPC through authenticated Connection and disposes it with the plugin', async () => {
+  it('registers one exact Fetch route and preserves omitted payloads', async () => {
+    let rpcFetch: ((request: Request) => Promise<Response>) | undefined
     const dispose = vi.fn(async () => undefined)
-    const handle = vi.fn((_channel: string, _handler: unknown) => dispose)
-    const ctx = await load({ id: 'gpt-5.6-luna' }, 'test-key', { rpc: { handle } })
+    const register = vi.fn((route: { path: string; fetch: (request: Request) => Promise<Response> }) => {
+      rpcFetch = route.fetch
+      return dispose
+    })
+    const credentials = {
+      resolve: async () => ({ value: 'test-key' }),
+      describe: async () => ({ configured: true, writable: false }),
+    }
+    const ctx = await load({ id: 'gpt-5.6-luna' }, 'test-key', { operator: {}, fetch: { register } }, credentials)
 
-    expect(handle).toHaveBeenCalledWith(COMMANDCODE_RPC_CHANNEL, expect.any(Function))
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({
+      path: COMMANDCODE_RPC_CHANNEL + '/' + COMMANDCODE_RPC_METHOD,
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: expect.any(Function),
+    }))
+    expect(register).toHaveBeenCalledTimes(1)
+    if (rpcFetch === undefined) throw new Error('Command Code did not register its Fetch route')
+    const response = await rpcFetch(new Request('http://localhost' + COMMANDCODE_RPC_CHANNEL + '/' + COMMANDCODE_RPC_METHOD, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId: 'test-rpc-id',
+        method: COMMANDCODE_RPC_METHOD,
+        payload: { endpoint: COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT },
+      }),
+    }))
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      type: 'server-response',
+      rpcId: 'test-rpc-id',
+      result: { ok: true, value: { configured: true, writable: false } },
+    })
     await ctx.fiber.dispose()
+    context = undefined
     expect(dispose).toHaveBeenCalledTimes(1)
   })
 
