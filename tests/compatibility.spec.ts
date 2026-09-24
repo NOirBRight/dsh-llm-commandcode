@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { shouldMountDshRuntime } from '../src/compatibility.ts'
 
-const VERIFIED = new Set(['0.1.2-alpha.4', '0.1.2-rc.1'])
+const VERIFIED = new Set(['0.1.2-alpha.4', '0.1.2-rc.1', '0.1.7-alpha.2', '0.1.7-rc.1'])
 
 function logger(warnings: string[]) {
   return { warn(message: string): void { warnings.push(message) } }
@@ -31,13 +31,13 @@ describe('DSH forward compatibility policy', () => {
     ])
   })
 
-  it('does not warn for a verified runtime', () => {
+  it('does not warn for verified runtimes', () => {
     const warnings: string[] = []
-    expect(shouldMountDshRuntime(logger(warnings), 'test-plugin', '0.1.2-rc.1', VERIFIED)).toBe(true)
+    for (const version of VERIFIED) expect(shouldMountDshRuntime(logger(warnings), 'test-plugin', version, VERIFIED)).toBe(true)
     expect(warnings).toEqual([])
   })
 
-  it('pins DSH peers and compatibility metadata to alpha2', () => {
+  it('accepts DSH releases from alpha2 and records rc1 compatibility', () => {
     const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
       dsh?: { compatibility?: { dshReleases?: Record<string, string> } }
       peerDependencies?: Record<string, string>
@@ -45,8 +45,8 @@ describe('DSH forward compatibility policy', () => {
     const peers = Object.entries(manifest.peerDependencies ?? {}).filter(([name]) => name.startsWith('@deepseek-ai/dsh-'))
     expect(peers.length).toBeGreaterThan(0)
     for (const [name, range] of peers) {
-      expect(range, name).toBe('0.1.7-alpha.2')
+      expect(range, name).toBe('>=0.1.7-alpha.2')
     }
-    expect(manifest.dsh?.compatibility?.dshReleases).toEqual({ '0.1.7-alpha.2': 'compatible' })
+    expect(manifest.dsh?.compatibility?.dshReleases).toEqual({ '0.1.7-alpha.2': 'compatible', '0.1.7-rc.1': 'compatible' })
   })
 })

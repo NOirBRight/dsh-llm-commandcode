@@ -1,3 +1,7 @@
+## v0.1.34
+
+- Verify compatibility with official DeepSeek Harness `0.1.7-rc.1` and accept DSH package versions from `0.1.7-alpha.2` onward.
+
 ## Unreleased
 
 - Complete the official DSH `0.1.7-alpha.2` ConfigForm cutover: read account state from the credential RPC, validate edited settings on the authenticated Host route, and save only changed fields through revision-fenced Loader ConfigForm. Serializable model defaults keep the settings detail usable without an API key.
