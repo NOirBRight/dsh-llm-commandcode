@@ -92,9 +92,9 @@ export function apply(ctx: Context): void {
       publishAccount(status.configured ? 'configured' : 'unconnected')
     }
   }
-  const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async settings => {
+  const saveConfiguration: CommandCodeCardFace['saveConfiguration'] = async (settings, sourceRevision) => {
     const current = form.getSnapshot()
-    if (current.status !== 'ready' || current.value === undefined || current.revision === undefined || !current.writable) throw new Error(t('saveFailed'))
+    if (current.status !== 'ready' || current.value === undefined || current.revision === undefined || !current.writable || current.revision !== sourceRevision) throw new Error(t('saveFailed'))
     const before = decodeCommandCodeSettings(current.value)
     if (before === undefined) throw new Error(t('saveFailed'))
     const ops: SettingsPathOpView[] = []
@@ -105,7 +105,7 @@ export function apply(ctx: Context): void {
     if (ops.length === 0) return { settings: before, revision: current.revision }
     const result = await callPlugin(COMMANDCODE_VALIDATE_ENDPOINT, { settings })
     if (!result.ok) throw new Error(result.error.message)
-    const accepted = await form.mutate(ops, current.revision)
+    const accepted = await form.mutate(ops, sourceRevision)
     if (!accepted) throw new Error(t('saveFailed'))
     const saved = form.getSnapshot()
     const value = decodeCommandCodeSettings(saved.value)

@@ -7,7 +7,9 @@ import {
   COMMANDCODE_CREDENTIAL_SET_ENDPOINT,
   COMMANDCODE_CREDENTIAL_STATUS_ENDPOINT,
   COMMANDCODE_RPC_METHOD,
+  COMMANDCODE_VALIDATE_ENDPOINT,
 } from '../src/client-contract.ts'
+import type { CommandCodeSettingsView } from '../src/client-contract.ts'
 import { clearProviderUsageCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 
 interface SlotEntry {
@@ -52,7 +54,7 @@ class FakeSlots extends Service {
   }
 }
 
-async function bench(call = vi.fn(async () => ({ ok: true, value: { models: [], warnings: [] } }))): Promise<{ ctx: Context; slots: FakeSlots }> {
+async function bench(call = vi.fn(async () => ({ ok: true, value: { models: [], warnings: [] } })), configForms?: unknown): Promise<{ ctx: Context; slots: FakeSlots }> {
   const ctx = new Context()
   await ctx.plugin(FakeSlots).await()
   const slots = ctx.get('slots') as FakeSlots
@@ -61,7 +63,7 @@ async function bench(call = vi.fn(async () => ({ ok: true, value: { models: [], 
     isLoopback: true,
     rpc: { call },
   })
-  ctx.provide('configForms', {
+  ctx.provide('configForms', (configForms ?? {
     get: () => ({
       getSnapshot: () => ({
         status: 'ready' as const,
@@ -85,7 +87,7 @@ async function bench(call = vi.fn(async () => ({ ok: true, value: { models: [], 
       set: async () => true,
       unset: async () => true,
     }),
-  } as never)
+  }) as never)
   ctx.provide('webServer', { register: () => () => {} } as never)
   return { ctx, slots }
 }
@@ -226,6 +228,50 @@ describe('CommandCode client registration', () => {
     await vi.waitFor(() => { expect(entry?.account().state).toBe('unconnected') })
     await dispose(ctx, fiber)
   })
+
+  it('rejects stale card revisions before validation, mutation, or no-op success', async () => {
+    const initialSettings: CommandCodeSettingsView = {
+      models: [{ id: 'model-a', contextWindow: 1_000_000 }],
+      defaultContextWindow: 1_000_000,
+      defaultMaxTokens: 32_768,
+      requestTimeoutMs: 60_000,
+      streamIdleTimeoutMs: 300_000,
+      zeroDataRetention: false,
+      usageEnabled: true,
+    }
+    let current = { status: 'ready' as const, value: initialSettings, base: {}, user: {}, revision: 1, writable: true, mode: 'host' as const }
+    const mutate = vi.fn(async (ops: readonly { op: string; path: readonly string[]; value: unknown }[], sourceRevision: number) => {
+      if (current.revision !== sourceRevision) return false
+      const value = { ...current.value }
+      for (const op of ops) {
+        if (op.op === 'set' && op.path.length === 1) Object.assign(value, { [op.path[0]!]: op.value })
+      }
+      current = { ...current, value, revision: current.revision + 1 }
+      return true
+    })
+    const form = { getSnapshot: () => current, mutate }
+    const call = vi.fn(async (_channel: string, _method: string, _request: { endpoint?: string }) => ({ ok: true, value: { models: [], warnings: [] } }))
+    const { ctx, slots } = await bench(call, { get: () => form })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]?.inject?.() as {
+      saveConfiguration(settings: CommandCodeSettingsView, sourceRevision: number): Promise<unknown>
+    }
+    const firstTab = { settings: initialSettings, revision: current.revision }
+    const secondTab = { settings: initialSettings, revision: current.revision }
+
+    await face.saveConfiguration({ ...secondTab.settings, defaultMaxTokens: 16_384 }, secondTab.revision)
+    await expect(face.saveConfiguration({ ...firstTab.settings, zeroDataRetention: true }, firstTab.revision)).rejects.toThrow()
+    await expect(face.saveConfiguration(current.value, firstTab.revision)).rejects.toThrow()
+
+    expect(current.value.defaultMaxTokens).toBe(16_384)
+    expect(current.value.zeroDataRetention).toBe(false)
+    expect(current.revision).toBe(2)
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(call.mock.calls.filter(([, , request]) => request.endpoint === COMMANDCODE_VALIDATE_ENDPOINT)).toHaveLength(1)
+    await dispose(ctx, fiber)
+  })
+
 
   it('keeps a saved account when an older credential read finishes later', async () => {
     let resolveRead: (value: unknown) => void

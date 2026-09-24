@@ -40,7 +40,7 @@ export interface CommandCodeCardFace {
   hooks: { commandCodeSettings: ConfigForm<CommandCodeSettingsView> }
   describeCredential: () => Promise<CommandCodeCredentialState>
   storeApiKey: (apiKey: string) => Promise<void>
-  saveConfiguration: (settings: CommandCodeSettingsView) => Promise<CommandCodeSaveResult>
+  saveConfiguration: (settings: CommandCodeSettingsView, sourceRevision: number) => Promise<CommandCodeSaveResult>
   discoverModels: (request: CommandCodeDiscoveryRequest) => Promise<CommandCodeDiscoveryResult>
   fetchUsage: () => Promise<CommandCodeUsageRead>
   beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CommandCodeModelConfig[]) => void) => void
@@ -439,12 +439,13 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
 
   const discard = (): void => { if (source !== undefined) setDraft(structuredClone(source)); setApiKey(''); setFailure(undefined); setNotice(undefined) }
   const save = async (): Promise<void> => {
-    if (draft === undefined || snapshot.value === undefined || invalid) return
+    if (draft === undefined || snapshot.value === undefined || sourceRevision === undefined || invalid) return
     usageEpoch.current++
     setBusy(true); setFailure(undefined); setNotice(undefined)
     try {
+      if (snapshot.revision !== sourceRevision) throw new Error(t('saveFailed'))
       if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
-      const accepted = await props.saveConfiguration(settingsOf(draft, snapshot.value))
+      const accepted = await props.saveConfiguration(settingsOf(draft, snapshot.value), sourceRevision)
       const next = draftOf(accepted.settings)
       setSource(next); setDraft(next); setSourceRevision(accepted.revision); setApiKey(''); setNotice(t('saved')); await refreshCredential(); setUsage({ status: 'idle' })
     } catch (error: unknown) {

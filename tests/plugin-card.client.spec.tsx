@@ -31,7 +31,7 @@ function props(overrides: Record<string, unknown> = {}, settingsValue: CommandCo
     completeModelPicker: vi.fn(),
     failModelPicker: vi.fn(),
     closeModelPicker: vi.fn(),
-    saveConfiguration: vi.fn(async () => ({ settings, revision: 2 })),
+    saveConfiguration: vi.fn(async (_next: CommandCodeSettingsView, _sourceRevision: number) => ({ settings, revision: 2 })),
     discoverModels: vi.fn(async () => ({ models: [{ id: 'new-model', contextWindow: 1_048_576, inputModalities: ['text'] }], warnings: [] })),
     fetchUsage: vi.fn(async () => ({ status: 'ok' as const, usage: { fetchedAt: '2026-08-26T00:00:00.000Z', failures: [] } })),
     ...overrides,
