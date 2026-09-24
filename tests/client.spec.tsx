@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommandCodeSettingsCard } from '../src/client/CommandCodeSettingsCard.tsx'
 import { en } from '../src/client/locales.ts'
@@ -11,7 +11,6 @@ import type { CommandCodeSettingsCardProps } from '../src/client/CommandCodeSett
 afterEach(() => cleanup())
 
 const settings: CommandCodeSettingsView = {
-  apiKeyEnv: 'COMMANDCODE_API_KEY',
   models: [{ id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', contextWindow: 1_050_000 }],
   defaultContextWindow: 1_000_000,
   defaultMaxTokens: 32768,
@@ -32,7 +31,7 @@ function props(overrides: Record<string, unknown> = {}, settingsValue: CommandCo
     completeModelPicker: vi.fn(),
     failModelPicker: vi.fn(),
     closeModelPicker: vi.fn(),
-    saveConfiguration: vi.fn(async () => ({ settings, revision: 2 })),
+    saveConfiguration: vi.fn(async (_next: CommandCodeSettingsView, _sourceRevision: number) => ({ settings, revision: 2 })),
     discoverModels: vi.fn(async () => ({ models: [{ id: 'new-model', contextWindow: 1_048_576, inputModalities: ['text'] }], warnings: [] })),
     fetchUsage: vi.fn(async () => ({
       status: 'ok' as const,
@@ -100,15 +99,84 @@ describe('CommandCodeSettingsCard', () => {
   })
 
   it('marks a newly entered key dirty so Save persists it', async () => {
-    const saveConfiguration = vi.fn(async () => ({ settings, revision: 2 }))
+    const saveConfiguration = vi.fn(async (_next: CommandCodeSettingsView, _sourceRevision: number) => ({ settings, revision: 2 }))
     const storeApiKey = vi.fn(async () => {})
     render(<CommandCodeSettingsCard {...props({ saveConfiguration, storeApiKey })} />)
     fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
     fireEvent.change(screen.getByPlaceholderText('Enter Command Code API key'), { target: { value: 'new-secret' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(storeApiKey).toHaveBeenCalledWith('new-secret'))
-    expect(saveConfiguration).toHaveBeenCalledWith({ ...settings, models: [{ ...settings.models[0]!, defaultEffort: 'max' }] })
+    expect(saveConfiguration).toHaveBeenCalledWith({ ...settings, models: [{ ...settings.models[0]!, defaultEffort: 'max' }] }, 1)
   })
+  it('retains the key and advances the form revision when credential storage fails after a settings save', async () => {
+    let latestSnapshot = { status: 'ready' as const, value: settings, base: {}, user: {}, revision: 1, writable: true, mode: 'host' as const }
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView, sourceRevision: number) => {
+      if (sourceRevision !== latestSnapshot.revision) throw new Error('stale revision')
+      latestSnapshot = { ...latestSnapshot, value: next, revision: sourceRevision + 1 }
+      return { settings: next, revision: latestSnapshot.revision }
+    })
+    const storeApiKey = vi.fn()
+      .mockRejectedValueOnce(new Error('credential storage failed'))
+      .mockResolvedValueOnce(undefined)
+    render(<CommandCodeSettingsCard {...props({ saveConfiguration, storeApiKey, useCommandCodeSettings: (selector: (value: typeof latestSnapshot) => unknown) => selector(latestSnapshot) })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
+    const keyInput = screen.getByPlaceholderText('Enter Command Code API key') as HTMLInputElement
+    fireEvent.change(keyInput, { target: { value: 'retry-secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.getByText('credential storage failed')).toBeTruthy())
+    expect(keyInput.value).toBe('retry-secret')
+    expect(latestSnapshot.revision).toBe(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(storeApiKey).toHaveBeenCalledTimes(2))
+    expect(saveConfiguration.mock.calls.map(([, sourceRevision]) => sourceRevision)).toEqual([1, 2])
+    await waitFor(() => expect(keyInput.value).toBe(''))
+  })
+
+  it('does not persist a retained draft or key after another tab saves', async () => {
+    let latestSnapshot = { status: 'ready' as const, value: settings, base: {}, user: {}, revision: 1, writable: true, mode: 'host' as const }
+    const useCommandCodeSettings = (selector: (value: typeof latestSnapshot) => unknown): unknown => selector(latestSnapshot)
+    let releaseFirstSave!: () => void
+    const firstSavePending = new Promise<void>(resolve => { releaseFirstSave = resolve })
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView, sourceRevision: number) => {
+      if (next.models[0]?.id === 'retained-draft') await firstSavePending
+      if (sourceRevision !== latestSnapshot.revision) throw new Error('stale revision')
+      const revision = sourceRevision + 1
+      latestSnapshot = { ...latestSnapshot, value: next, revision }
+      return { settings: next, revision }
+    })
+    const storeApiKey = vi.fn(async () => {})
+    const overrides = {
+      useCommandCodeSettings,
+      saveConfiguration,
+      storeApiKey,
+      describeCredential: vi.fn(async () => ({ configured: false, writable: true })),
+    }
+    const firstProps = props(overrides)
+    const secondProps = props(overrides)
+    const firstTab = render(<CommandCodeSettingsCard {...firstProps} />)
+    const secondTab = render(<CommandCodeSettingsCard {...secondProps} />)
+    const first = within(firstTab.container)
+    const second = within(secondTab.container)
+    fireEvent.click(first.getByRole('button', { name: /Expand: Command Code/ }))
+    fireEvent.click(first.getByRole('button', { name: 'Model catalog' }))
+    fireEvent.change(first.getByLabelText('Model ID 1'), { target: { value: 'retained-draft' } })
+    fireEvent.change(first.getByPlaceholderText('Enter Command Code API key'), { target: { value: 'stale-key' } })
+    fireEvent.click(second.getByRole('button', { name: /Expand: Command Code/ }))
+    fireEvent.click(second.getByRole('button', { name: 'Model catalog' }))
+    fireEvent.change(second.getByLabelText('Model ID 1'), { target: { value: 'other-tab-save' } })
+    fireEvent.click(first.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(saveConfiguration).toHaveBeenCalledTimes(1))
+    fireEvent.click(second.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(latestSnapshot.revision).toBe(2))
+    releaseFirstSave()
+    await waitFor(() => expect(first.getByText('stale revision')).toBeTruthy())
+
+    expect((first.getByLabelText('Model ID 1') as HTMLInputElement).value).toBe('retained-draft')
+    expect(latestSnapshot.value.models[0]?.id).toBe('other-tab-save')
+    expect(storeApiKey).not.toHaveBeenCalled()
+    expect(saveConfiguration).toHaveBeenCalledTimes(2)
+  })
+
 
   it('keeps models.dev overlay efforts when the row is saved', async () => {
     const overlayModel = {
@@ -119,7 +187,7 @@ describe('CommandCodeSettingsCard', () => {
       defaultEffort: 'high',
     }
     const current = { ...settings, models: [overlayModel] }
-    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView) => ({ settings: next, revision: 2 }))
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView, _sourceRevision: number) => ({ settings: next, revision: 2 }))
     render(<CommandCodeSettingsCard {...props({ saveConfiguration }, current)} />)
     fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
     fireEvent.change(screen.getByPlaceholderText('Enter Command Code API key'), { target: { value: 'new-secret' } })
@@ -130,6 +198,7 @@ describe('CommandCodeSettingsCard', () => {
       thinkingEfforts: ['low', 'high'],
       defaultEffort: 'high',
     })
+    expect(saveConfiguration.mock.calls[0]?.[1]).toBe(1)
   })
 
   it('keeps public discovery credential-free and endpoint-free', async () => {
@@ -170,7 +239,7 @@ describe('CommandCodeSettingsCard', () => {
       models: [discovered],
       warnings: [],
     }))
-    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView) => ({ settings: next, revision: 2 }))
+    const saveConfiguration = vi.fn(async (next: CommandCodeSettingsView, _sourceRevision: number) => ({ settings: next, revision: 2 }))
     render(<CommandCodeSettingsCard {...props({}, current)} beginModelPicker={beginModelPicker} completeModelPicker={completeModelPicker} discoverModels={discoverModels} saveConfiguration={saveConfiguration} />)
     fireEvent.click(screen.getByRole('button', { name: /Expand: Command Code/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Model catalog' }))
@@ -188,6 +257,6 @@ describe('CommandCodeSettingsCard', () => {
         contextWindowOverride: 123_456,
         inputModalities: ['text', 'image'],
       })],
-    }))
+    }), 1)
   })
 })

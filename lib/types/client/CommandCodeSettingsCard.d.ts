@@ -1,6 +1,6 @@
 /** Command Code provider card using the shared DSH provider layout. */
 import type { ReactNode } from 'react';
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client';
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client';
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { CommandCodeDiscoveryRequest, CommandCodeDiscoveryResult, CommandCodeSaveResult, CommandCodeSettingsView } from '../client-contract.ts';
 import type { CommandCodeModelConfig, CommandCodeUsageRead } from '../types.ts';
@@ -13,11 +13,11 @@ export interface CommandCodeCredentialState {
 export interface CommandCodeCardFace {
     t: (key: CommandCodeSettingsKey) => string;
     hooks: {
-        commandCodeSettings: SettingsScope<CommandCodeSettingsView>;
+        commandCodeSettings: ConfigForm<CommandCodeSettingsView>;
     };
     describeCredential: () => Promise<CommandCodeCredentialState>;
     storeApiKey: (apiKey: string) => Promise<void>;
-    saveConfiguration: (settings: CommandCodeSettingsView) => Promise<CommandCodeSaveResult>;
+    saveConfiguration: (settings: CommandCodeSettingsView, sourceRevision: number) => Promise<CommandCodeSaveResult>;
     discoverModels: (request: CommandCodeDiscoveryRequest) => Promise<CommandCodeDiscoveryResult>;
     fetchUsage: () => Promise<CommandCodeUsageRead>;
     beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CommandCodeModelConfig[]) => void) => void;

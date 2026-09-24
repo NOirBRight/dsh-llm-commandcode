@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { CommandCodeAdapter, narrowCommandCodeEscalationSchemas } from '../src/adapter.ts'
-import { resolveAdapterOptions } from '../src/index.ts'
+import { Config, resolveAdapterOptions } from '../src/index.ts'
 
 function baseOptions(mode: string): GenerateOptions {
   return {
@@ -168,12 +168,11 @@ describe('narrowCommandCodeEscalationSchemas', () => {
 
 describe('CommandCodeAdapter sandbox filtering (direct and prepared)', () => {
   function connection() {
-    return resolveAdapterOptions({
+    return resolveAdapterOptions(Config({
       apiKeyEnv: 'COMMANDCODE_API_KEY',
       models: [{ id: 'gpt-5.6-luna', contextWindow: 1_000_000 }],
-    })
+    }))
   }
-
   it('filters on direct stream()', async () => {
     const adapter = new CommandCodeAdapter({ options: connection, resolveApiKey: async () => 'key' })
     let captured: GenerateOptions | undefined

@@ -1,3 +1,19 @@
+## Unreleased
+
+- Complete the official DSH `0.1.7-alpha.2` ConfigForm cutover: read account state from the credential RPC, validate edited settings on the authenticated Host route, and save only changed fields through revision-fenced Loader ConfigForm. Serializable model defaults keep the settings detail usable without an API key.
+
+## v0.1.31
+
+## 0.1.32
+
+- Declare `webServer` on the Host `inject` list (and nested Connection scope) so settings/auth RPC mounts on DSH 0.1.6+ inject enforcement.
+
+Validate thinking efforts. Register catalog extras against providers-ui 0.2.9.
+
+## v0.1.30
+
+DSH Host packages are no longer version-locked. `@deepseek-ai/dsh-*` peers are `*` and optional; unknown Hosts warn once and still mount. Cordis stays `>=4.0.2 <5.0.0`. Compile-target `devDependencies` remain `0.1.5-rc.1`.
+
 ## v0.1.29
 
 跟随 providers-ui 0.2.7 重建：缓存读出的 windows 也会按 5 小时 → 周 → 月重排，刷新页面不再沿用 localStorage 里的旧顺序。

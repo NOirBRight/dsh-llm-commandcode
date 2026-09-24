@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   CommandCodeDiscoveryRequest,
@@ -14,10 +14,9 @@ import { COMMANDCODE_SETTINGS_NAMESPACE, PUBLIC_PROVIDER_BASE_URL } from '../cli
 import type { CommandCodeModelConfig, CommandCodeUsageRead, CommandCodeUsageView } from '../types.ts'
 import type { CommandCodeSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, providerUiCss } from './provider-chrome.tsx'
+import { ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, providerUiCss, useProviderQuotaCache } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from 'dsh-llm-providers-ui/provider-ui';
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
-import { headerQuotaFromCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
 
 import { EFFORT_LABELS, defaultEffortForCommandCodeModel, effortsForCommandCodeModel } from '../reasoning-catalog.ts'
@@ -38,10 +37,10 @@ export interface CommandCodeCredentialState {
 
 export interface CommandCodeCardFace {
   t: (key: CommandCodeSettingsKey) => string
-  hooks: { commandCodeSettings: SettingsScope<CommandCodeSettingsView> }
+  hooks: { commandCodeSettings: ConfigForm<CommandCodeSettingsView> }
   describeCredential: () => Promise<CommandCodeCredentialState>
   storeApiKey: (apiKey: string) => Promise<void>
-  saveConfiguration: (settings: CommandCodeSettingsView) => Promise<CommandCodeSaveResult>
+  saveConfiguration: (settings: CommandCodeSettingsView, sourceRevision: number) => Promise<CommandCodeSaveResult>
   discoverModels: (request: CommandCodeDiscoveryRequest) => Promise<CommandCodeDiscoveryResult>
   fetchUsage: () => Promise<CommandCodeUsageRead>
   beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CommandCodeModelConfig[]) => void) => void
@@ -337,7 +336,7 @@ function headlineQuotaOf(view: CommandCodeUsageView | undefined, t: CommandCodeS
 /** Standard collapsible provider card. */
 export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): ReactNode {
   const { t } = props
-  const snapshot = props.useCommandCodeSettings((value: SettingsScopeSnapshot<CommandCodeSettingsView>) => value)
+  const snapshot = props.useCommandCodeSettings((value: ConfigFormSnapshot<CommandCodeSettingsView>) => value)
   const initial = useMemo(() => snapshot.value === undefined ? undefined : draftOf(snapshot.value), [snapshot.value])
   const [open, setOpen] = useState(false)
   const [source, setSource] = useState<Draft | undefined>(initial)
@@ -383,7 +382,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
       setCredential(undefined)
     }
   }
-  useEffect(() => { if (snapshot.status === 'ready') void refreshCredential() }, [snapshot.status, snapshot.value?.apiKeyEnv])
+  useEffect(() => { if (snapshot.status === 'ready') void refreshCredential() }, [snapshot.status, snapshot.revision])
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -403,17 +402,16 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const loadUsage = async (): Promise<void> => {
     // The settings page owns quota in the shared detail; the card self-loads only in the legacy layout.
     if (props.mode === 'detail') return
-    if (draft === undefined || snapshot.value?.usageEnabled === false || (!credential?.configured && apiKey.trim().length === 0)) return
+    if (draft === undefined || snapshot.value?.usageEnabled === false || credential?.configured !== true) return
     const epoch = usageEpoch.current + 1
     usageEpoch.current = epoch
     const live = (): boolean => mounted.current && epoch === usageEpoch.current
     setUsage({ status: 'loading' })
     try {
-      if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
       const result = await props.fetchUsage()
       if (!live()) return
       if (result.status === 'unsupported') setUsage({ status: 'unsupported' })
-      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()); rememberHeadlineQuota(COMMANDCODE_SETTINGS_NAMESPACE, 'CommandCode', headlineQuotaOf(result.usage, t)) }
+      else { setUsage({ status: 'ready', usage: result.usage }); setUsageUpdatedAt(new Date()) }
     } catch (error: unknown) { if (live()) setUsage({ status: 'error', message: messageOf(error, t('quotaFailed')) }) }
   }
   // Header quota loads collapsed once the credential is ready; idle status dedups so expansion never refires.
@@ -440,18 +438,20 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
 
   const discard = (): void => { if (source !== undefined) setDraft(structuredClone(source)); setApiKey(''); setFailure(undefined); setNotice(undefined) }
   const save = async (): Promise<void> => {
-    if (draft === undefined || snapshot.value === undefined || invalid) return
+    if (draft === undefined || snapshot.value === undefined || sourceRevision === undefined || invalid) return
     usageEpoch.current++
     setBusy(true); setFailure(undefined); setNotice(undefined)
     try {
-      if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
-      const accepted = await props.saveConfiguration(settingsOf(draft, snapshot.value))
+      if (snapshot.revision !== sourceRevision) throw new Error(t('saveFailed'))
+      const accepted = await props.saveConfiguration(settingsOf(draft, snapshot.value), sourceRevision)
       const next = draftOf(accepted.settings)
-      setSource(next); setDraft(next); setSourceRevision(accepted.revision); setApiKey(''); setNotice(t('saved')); await refreshCredential(); setUsage({ status: 'idle' })
+      setSource(next); setDraft(next); setSourceRevision(accepted.revision)
+      if (apiKey.trim().length > 0) await props.storeApiKey(apiKey.trim())
+      setApiKey(''); setNotice(t('saved')); await refreshCredential(); setUsage({ status: 'idle' })
     } catch (error: unknown) {
       const message = messageOf(error, t('saveFailed'))
       setFailure(message)
-      // Idle would automatically retry storing the rejected key through loadUsage.
+      // A failed credential write leaves the key draft intact for a deliberate retry.
       setUsage(current => current.status === 'loading' ? { status: 'error', message } : current)
     }
     finally { setBusy(false) }
@@ -464,13 +464,17 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
   const quotaWithheld = credential?.configured === false || usage.status === 'error' || usage.status === 'unsupported'
   // The verdict gates the entire header quota, not only the persisted fallback:
   // stale local lastUsage must not look fresh on error/unsupported either.
-  const headerQuota = quotaWithheld ? undefined : (liveQuota ?? headerQuotaFromCache(peekCachedUsage(COMMANDCODE_SETTINGS_NAMESPACE)))
+  const headerQuota = useProviderQuotaCache(COMMANDCODE_SETTINGS_NAMESPACE, 'CommandCode', liveQuota ?? null, {
+    answered: credential !== undefined,
+    signedOut: credential?.configured === false,
+    withheld: quotaWithheld,
+  })
   if (snapshot.status !== 'ready' || draft === undefined) {
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
         <style>{providerUiCss}</style>
         <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => { setOpen(current => !current) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary="" status="" open={open} role="llm" {...(headerQuota === undefined ? {} : { quota: headerQuota })} />
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary="" status="" open={open} role="llm" {...(headerQuota === null ? {} : { quota: headerQuota })} />
         </button>
       </li>
     )
@@ -600,7 +604,7 @@ export function CommandCodeSettingsCard(props: CommandCodeSettingsCardProps): Re
       <style>{providerUiCss}</style>
       <button type="button" data-provider-card-header="" aria-expanded={open} aria-label={(open ? t('collapse') : t('expand')) + ': ' + title} onClick={() => setOpen(current => !current)}>
         <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerCount} status={headerStatus} open={open} unsaved={dirty} unsavedLabel={t('unsaved')} role="llm"
-          {...(headerQuota === undefined
+          {...(headerQuota === null
             ? (credential?.configured === true && (usage.status === 'error' || usage.status === 'unsupported')
               // Query attempted but no usable quota: unavailable dash, never a fabricated percent.
               ? { quota: { label: t('quota') } }

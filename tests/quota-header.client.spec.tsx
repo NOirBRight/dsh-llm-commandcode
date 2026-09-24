@@ -11,7 +11,6 @@ import type { CommandCodeSettingsView } from '../src/client-contract.ts'
 afterEach(() => { cleanup(); clearProviderUsageCache() })
 
 const settings: CommandCodeSettingsView = {
-  apiKeyEnv: 'COMMANDCODE_API_KEY',
   models: [{ id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', contextWindow: 1_050_000 }],
   defaultContextWindow: 1_000_000,
   defaultMaxTokens: 32768,
@@ -33,7 +32,7 @@ function props(overrides: Record<string, unknown> = {}): CommandCodeSettingsCard
     useCommandCodeSettings: (selector: (value: typeof snapshot) => unknown) => selector(snapshot),
     describeCredential: vi.fn(async () => ({ configured: true, writable: true })),
     storeApiKey: vi.fn(async () => {}),
-    saveConfiguration: vi.fn(async () => ({ settings, revision: 2 })),
+    saveConfiguration: vi.fn(async (_next: CommandCodeSettingsView, _sourceRevision: number) => ({ settings, revision: 2 })),
     discoverModels: vi.fn(async () => ({ models: [], warnings: [] })),
     fetchUsage: vi.fn(async () => usageOk),
     beginModelPicker: vi.fn(),
@@ -117,7 +116,7 @@ describe('CommandCodeSettingsCard collapsed quota', () => {
     const first = deferred<typeof usageA>()
     const second = deferred<typeof usageB>()
     const fetchUsage = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
-    const saveConfiguration = vi.fn((next: unknown) => Promise.resolve({ settings: next, revision: 2 }))
+    const saveConfiguration = vi.fn((next: unknown, _sourceRevision: number) => Promise.resolve({ settings: next, revision: 2 }))
     render(<CommandCodeSettingsCard {...props({ fetchUsage, saveConfiguration })} />)
     await waitFor(() => { expect(fetchUsage).toHaveBeenCalledTimes(1) })
     fireEvent.click(screen.getByRole('button', { name: en.expand + ': ' + en.title }))
@@ -195,7 +194,7 @@ describe('CommandCodeSettingsCard collapsed quota', () => {
     const describeCredential = vi.fn()
       .mockReturnValueOnce(credentialGate)
       .mockResolvedValue({ configured: true, writable: true })
-    const saveConfiguration = vi.fn((next: unknown) => Promise.resolve({ settings: next, revision: 2 }))
+    const saveConfiguration = vi.fn((next: unknown, _sourceRevision: number) => Promise.resolve({ settings: next, revision: 2 }))
     render(<CommandCodeSettingsCard {...props({ describeCredential, saveConfiguration })} />)
     await waitFor(() => { expect(describeCredential).toHaveBeenCalledTimes(1) })
     fireEvent.click(screen.getByRole('button', { name: en.expand + ': ' + en.title }))

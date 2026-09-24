@@ -3,14 +3,14 @@ import {
   decodeCommandCodeCredentialSetRequest,
   decodeCommandCodeDiscoveryRequest,
   decodeCommandCodeSettings,
-  decodeCommandCodeSettingsReadResult,
+  decodeCommandCodeValidateRequest,
   decodeCommandCodeUsageReply,
 } from '../src/client-contract.ts'
 
 describe('Command Code browser contracts', () => {
   it('rejects malformed model context values and accepts exact capacities', () => {
     const base = {
-      apiKeyEnv: 'COMMANDCODE_API_KEY',
+
       models: [{ id: 'gpt', contextWindow: 1_050_000, inputModalities: ['text'] }],
       defaultContextWindow: 1_000_000,
       defaultMaxTokens: 32768,
@@ -20,6 +20,7 @@ describe('Command Code browser contracts', () => {
       usageEnabled: true,
     }
     expect(decodeCommandCodeSettings(base)?.models[0]?.contextWindow).toBe(1_050_000)
+    expect(decodeCommandCodeSettings({ ...base, apiKeyEnv: 'COMMANDCODE_API_KEY' })).not.toHaveProperty('apiKeyEnv')
     expect(decodeCommandCodeSettings({ ...base, models: [{ id: 'gpt', contextWindow: 0 }] })).toBeUndefined()
     expect(decodeCommandCodeSettings({ ...base, models: [{ id: 'gpt-5.6-luna', contextWindow: 1_050_000, reasoningEfforts: ['low'] }] })).toBeUndefined()
     expect(decodeCommandCodeSettings({
@@ -34,10 +35,10 @@ describe('Command Code browser contracts', () => {
     expect(decodeCommandCodeSettings({ ...base, providerBaseURL: 'https://evil.example/provider/v1' })).not.toHaveProperty('providerBaseURL')
   })
 
-  it('decodes management snapshots without secrets and accepts only one-way key writes', () => {
-    const settings = { apiKeyEnv: 'COMMANDCODE_API_KEY', models: [], defaultContextWindow: 1, defaultMaxTokens: 1, requestTimeoutMs: 1, streamIdleTimeoutMs: 1, zeroDataRetention: false, usageEnabled: true }
-    expect(decodeCommandCodeSettingsReadResult({ settings, revision: 3, credential: { configured: true, writable: true } })).toMatchObject({ revision: 3, credential: { configured: true } })
-    expect(decodeCommandCodeSettingsReadResult({ settings: { ...settings, apiKey: 'secret' }, revision: 3, credential: { configured: true, writable: true } })).toBeUndefined()
+  it('validates secret-free settings and accepts only one-way key writes', () => {
+    const settings = { models: [], defaultContextWindow: 1, defaultMaxTokens: 1, requestTimeoutMs: 1, streamIdleTimeoutMs: 1, zeroDataRetention: false, usageEnabled: true }
+    expect(decodeCommandCodeValidateRequest({ settings })).toEqual({ settings })
+    expect(decodeCommandCodeValidateRequest({ settings: { ...settings, apiKey: 'secret' } })).toBeUndefined()
     expect(decodeCommandCodeCredentialSetRequest({ apiKey: 'secret' })).toEqual({ apiKey: 'secret' })
     expect(decodeCommandCodeCredentialSetRequest({ apiKey: 'secret', value: 'secret' })).toBeUndefined()
   })
